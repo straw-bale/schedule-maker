@@ -1,7 +1,7 @@
 # R3A Dynamic Project Schedule — HTML Mockup Plan
 
 ## Context
-R3A Architecture needs a dynamic, browser-based project schedule tool to replace static InDesign/PowerPoint timelines. The existing standard (R3A Project No. 21076) is a landscape Gantt chart with phase bars, milestone circles, deliverable badges, and a legend footer. The goal is a single-file HTML mockup that matches R3A's visual standard and brand, is interactive (editable dates, draggable bars), and is simpler/more beautiful than MS Project.
+R3A Architecture needs a dynamic, browser-based project schedule tool to replace static InDesign/PowerPoint timelines. The existing standard is a landscape Gantt chart with phase bars, milestone circles, deliverable badges, and a legend footer. The goal is a single-file HTML mockup that matches R3A's visual standard and brand, is interactive (editable dates, draggable bars), and is simpler/more beautiful than MS Project.
 
 ---
 
@@ -139,7 +139,7 @@ Click any legend item to highlight the corresponding bar on the chart.
 
 ## Sample Data (pre-loaded)
 Matches the NLRB example from the standard:
-- Project: R3A No. 21076 / GSA NLRB Office Renovation
+- Project: Sample Project
 - Date range: Aug 2022 – Nov 2023
 - 12 tasks mirroring the image (Kick-Off through Project Occupancy)
 - 4 deliverables, 4 milestones, 2 estimates, 1 approval
