@@ -63,10 +63,14 @@ export const projectStore = {
     })));
   },
 
-  addTask(projectId, task) {
+  addTask(projectId, task, insertAfterId = null) {
     update(ps => persist(ps.map(p => {
       if (p.id !== projectId) return p;
-      return { ...p, tasks: [...p.tasks, task], nextTaskId: (p.nextTaskId || 1) + 1 };
+      const tasks = [...p.tasks];
+      const idx = insertAfterId != null ? tasks.findIndex(t => t.id === insertAfterId) : -1;
+      if (idx !== -1) tasks.splice(idx + 1, 0, task);
+      else tasks.push(task);
+      return { ...p, tasks, nextTaskId: (p.nextTaskId || 1) + 1 };
     })));
   },
 

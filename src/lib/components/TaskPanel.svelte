@@ -12,39 +12,50 @@
       const rowEl   = handle.closest('.t-row');
       const rowRect = rowEl.getBoundingClientRect();
 
-      // Ghost element
       const ghost = document.createElement('div');
       ghost.className = 't-ghost';
       ghost.style.cssText = `top:${rowRect.top}px;left:${rowRect.left}px;width:${rowRect.width}px;height:${ROW_H}px;`;
       ghost.textContent = tasks[taskIdx].name;
       document.body.appendChild(ghost);
 
-      // Drop indicator
-      list.style.position = 'relative';
-      const indicator = document.createElement('div');
-      indicator.className = 't-drop-line';
-      indicator.style.display = 'none';
-      list.appendChild(indicator);
+      const spacer = document.createElement('div');
+      spacer.className = 't-drop-spacer';
 
       rowEl.classList.add('dragging');
+      rowEl.after(spacer);
+
       let insertAt = taskIdx;
+
+      function visibleRows() {
+        return [...list.querySelectorAll('.t-row')].filter(el => el !== rowEl);
+      }
+
+      function updateSpacerPos(clientY) {
+        const rows = visibleRows();
+        let newInsert = rows.length;
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i].getBoundingClientRect();
+          if (clientY < r.top + r.height / 2) { newInsert = i; break; }
+        }
+        if (newInsert === insertAt) return;
+        insertAt = newInsert;
+        spacer.remove();
+        if (insertAt >= rows.length) list.appendChild(spacer);
+        else rows[insertAt].before(spacer);
+      }
 
       function onMove(ev) {
         ghost.style.top = (rowRect.top + ev.clientY - e.clientY) + 'px';
-        const listRect = list.getBoundingClientRect();
-        const relY = ev.clientY - listRect.top + list.scrollTop;
-        insertAt = Math.max(0, Math.min(tasks.length, Math.round(relY / ROW_H)));
-        indicator.style.display = 'block';
-        indicator.style.top = (insertAt * ROW_H - 1) + 'px';
+        updateSpacerPos(ev.clientY);
       }
 
       function onUp() {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
-        ghost.remove(); indicator.remove();
+        ghost.remove();
+        spacer.remove();
         rowEl.classList.remove('dragging');
-        const finalIdx = insertAt > taskIdx ? insertAt - 1 : insertAt;
-        if (finalIdx !== taskIdx) onReorder(taskIdx, finalIdx);
+        if (insertAt !== taskIdx) onReorder(taskIdx, insertAt);
       }
 
       document.addEventListener('mousemove', onMove);
@@ -120,7 +131,7 @@
     transition: background .1s;
   }
   .t-row:hover { background: rgba(32,171,226,.04); }
-  .t-row.dragging { opacity: .3; }
+  .t-row.dragging { display: none; }
   .t-highlight { background: rgba(0,0,0,.06) !important; }
   .t-drag {
     opacity: 0;
@@ -196,13 +207,12 @@
     font-weight: 700;
     font-size: 10.5px;
   }
-  :global(.t-drop-line) {
-    position: absolute;
-    left: 0; right: 0;
-    height: 2px;
-    background: var(--blue);
-    border-radius: 1px;
+  :global(.t-drop-spacer) {
+    height: 34px;
+    background: rgba(32,171,226,.08);
+    border-left: 3px solid var(--blue);
+    border-bottom: 1px solid var(--lgray);
     pointer-events: none;
-    z-index: 50;
+    flex-shrink: 0;
   }
 </style>

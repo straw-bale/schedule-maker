@@ -1,4 +1,6 @@
 <script>
+  import systemPromptTemplate from '$lib/data/system-prompt.md?raw';
+
   const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_KEY ?? '';
 
   let { open = false, project = null, onApplyChanges, onClose } = $props();
@@ -9,27 +11,9 @@
   let msgList   = $state(null); // scroll ref
 
   function buildSystemPrompt() {
-    return `You are a project schedule assistant for R3A Architecture. You manage Gantt chart project schedules.
+    return `${systemPromptTemplate}
 
-When the user asks you to modify the schedule, respond with ONLY a valid JSON object:
-{
-  "message": "Brief, friendly description of what you changed.",
-  "changes": [
-    { "type": "updateTask",  "taskId": <number>,  "patch": { ...fields to update } },
-    { "type": "addTask",     "task":  { "id": <unique int>, "name": "...", "type": "bar"|"milestone", "color": "#hex", "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" } },
-    { "type": "deleteTask",  "taskId": <number> },
-    { "type": "updateView",  "patch": { "viewStart": "YYYY-MM-DD", "viewEnd": "YYYY-MM-DD" } }
-  ]
-}
-
-Rules:
-- All dates must be YYYY-MM-DD format. Colors must be hex.
-- Bar tasks use "start" and "end". Milestone tasks use "date" instead.
-- Preserve task duration when shifting dates unless told otherwise.
-- Use existing task IDs for updateTask. For addTask, pick an integer not already in use.
-- For informational questions that require no schedule change, reply as plain text (not JSON).
-
-Current project JSON:
+## Current Project
 ${JSON.stringify(project, null, 2)}`;
   }
 

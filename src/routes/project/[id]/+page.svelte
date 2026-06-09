@@ -105,18 +105,16 @@
   // Scroll sync refs
   let ganttScrollEl = $state(null);
   let taskListEl    = $state(null);
-
-  function syncScroll() {
-    if (taskListEl && ganttScrollEl) {
-      taskListEl.scrollTop = ganttScrollEl.scrollTop;
-    }
-  }
-
   $effect(() => {
-    if (ganttScrollEl) {
-      ganttScrollEl.addEventListener('scroll', syncScroll);
-      return () => ganttScrollEl.removeEventListener('scroll', syncScroll);
-    }
+    if (!ganttScrollEl || !taskListEl) return;
+    const fromGantt = () => { if (taskListEl.scrollTop !== ganttScrollEl.scrollTop) taskListEl.scrollTop = ganttScrollEl.scrollTop; };
+    const fromTask  = () => { if (ganttScrollEl.scrollTop !== taskListEl.scrollTop) ganttScrollEl.scrollTop = taskListEl.scrollTop; };
+    ganttScrollEl.addEventListener('scroll', fromGantt);
+    taskListEl.addEventListener('scroll', fromTask);
+    return () => {
+      ganttScrollEl.removeEventListener('scroll', fromGantt);
+      taskListEl.removeEventListener('scroll', fromTask);
+    };
   });
 
   // Store callbacks
@@ -194,10 +192,11 @@
 
   function handleAiChanges(changes) {
     for (const c of changes) {
-      if (c.type === 'updateTask')  projectStore.updateTask(data.id, c.taskId, c.patch);
-      if (c.type === 'addTask')     projectStore.addTask(data.id, c.task);
-      if (c.type === 'deleteTask')  projectStore.deleteTask(data.id, c.taskId);
-      if (c.type === 'updateView')  projectStore.updateMeta(data.id, c.patch);
+      if (c.type === 'updateTask')       projectStore.updateTask(data.id, c.taskId, c.patch);
+      if (c.type === 'addTask')          projectStore.addTask(data.id, c.task, c.insertAfterId ?? null);
+      if (c.type === 'deleteTask')       projectStore.deleteTask(data.id, c.taskId);
+      if (c.type === 'updateView')       projectStore.updateMeta(data.id, c.patch);
+      if (c.type === 'updateLegendItem') projectStore.updateLegendItem(data.id, c.section, c.index, c.patch);
     }
   }
 

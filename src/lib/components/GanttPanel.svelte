@@ -349,22 +349,6 @@
                   <div class="bar-handle rgt" onmousedown={(e) => { e.stopPropagation(); startDrag(e, task, 'right'); }}></div>
                 </div>
 
-                {#if task.delRef}
-                  <div
-                    class="bdg bdg-del"
-                    style:left="{rawRight - 9}px"
-                  >{task.delRef}</div>
-                {/if}
-
-                {#if task.msRef}
-                  {@const bx = rawRight - 9 + (task.delRef ? 14 : 0)}
-                  <div
-                    class="bdg"
-                    style:left="{bx}px"
-                    style:background={task.msRef.color}
-                    style:color={isLightColor(task.msRef.color) ? 'rgba(0,0,0,.6)' : '#fff'}
-                  >{task.msRef.code}</div>
-                {/if}
 
               {/if}
             {/if}
