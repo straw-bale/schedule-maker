@@ -1,0 +1,561 @@
+<script>
+  import { parseDate, toISO, timeColumns, ZOOM_COL_W, totalDays, dateToPx, isLightColor, MONTHS_SHORT } from '$lib/utils/dates.js';
+
+  const ROW_H = 34;
+
+  let {
+    tasks, viewStart: vsStr, viewEnd: veStr, todayMark: tmStr,
+    onTaskUpdate, onLegendItemUpdate = null, onDraggingChange = null,
+    scrollEl = $bindable(),
+    legend = null, dropDate = null, highlightTaskId = null,
+    zoom = 'month',
+  } = $props();
+
+  let viewStart  = $derived(parseDate(vsStr));
+  let viewEnd    = $derived(parseDate(veStr));
+  let colW       = $derived(ZOOM_COL_W[zoom] ?? 72);
+  let columns    = $derived(timeColumns(viewStart, viewEnd, zoom));
+  let ganttWidth = $derived(columns.length * colW);
+  let totalH     = $derived(tasks.length * ROW_H);
+
+  let yearGroups = $derived.by(() => {
+    const map = {};
+    columns.forEach(c => { const y = c.getFullYear(); map[y] = (map[y] || 0) + 1; });
+    return Object.entries(map).map(([year, count]) => ({ year, count: Number(count) }));
+  });
+
+  // Month span groups for biweek/weekly header
+  let mGroups = $derived.by(() => {
+    if (zoom === 'month') return [];
+    const groups = [];
+    let cur = null;
+    for (const col of columns) {
+      const key = `${col.getFullYear()}-${col.getMonth()}`;
+      if (!cur || cur.key !== key) {
+        cur = { key, label: MONTHS_SHORT[col.getMonth()], count: 1 };
+        groups.push(cur);
+      } else {
+        cur.count++;
+      }
+    }
+    return groups;
+  });
+
+  let todayPx   = $derived(dateToPx(tmStr, viewStart, viewEnd, ganttWidth));
+  let showToday = $derived(todayPx >= 0 && todayPx <= ganttWidth);
+
+  // Local bar drag state
+  let draggingId   = $state(null);
+  let draggingTask = $state(null);
+
+  let displayTasks = $derived(
+    draggingId !== null
+      ? tasks.map(t => t.id === draggingId ? draggingTask : t)
+      : tasks
+  );
+
+  // Legend overlay drag state
+  let draggingOverlay = $state(null); // { section, idx, date }
+
+  // Date popup
+  let popupTask = $state(null);
+  let popupX    = $state(0);
+  let popupY    = $state(0);
+
+  // Validation helpers
+  function delValid(num) {
+    if (!legend || !num) return true;
+    return num >= 1 && num <= legend.deliverables.length;
+  }
+  function msValid(code) {
+    if (!legend || !code) return true;
+    return legend.milestones.some(m => m.code === code);
+  }
+
+  function px(dateStr) {
+    return dateToPx(dateStr, viewStart, viewEnd, ganttWidth);
+  }
+
+  function pxToDate(xPx) {
+    const totalMs = viewEnd.getTime() - viewStart.getTime();
+    const ms = viewStart.getTime() + (xPx / ganttWidth) * totalMs;
+    const d = new Date(ms);
+    return toISO(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+  }
+
+  function openPopup(task, cx, cy) {
+    popupTask = { ...task };
+    const vw = window.innerWidth, vh = window.innerHeight;
+    popupX = cx + 10 + 230 > vw ? cx - 240 : cx + 10;
+    popupY = cy + 8 + 180 > vh ? cy - 185 : cy + 8;
+  }
+  function closePopup() { popupTask = null; }
+  function onPopupChange(field, val) {
+    if (!popupTask) return;
+    popupTask = { ...popupTask, [field]: val };
+    onTaskUpdate(popupTask.id, { [field]: val });
+  }
+
+  // Bar drag (move / left-resize / right-resize)
+  function startDrag(e, task, mode) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+
+    const pxPerDay = ganttWidth / totalDays(viewStart, viewEnd);
+    const startX   = e.clientX;
+    draggingId   = task.id;
+    draggingTask = { ...task };
+    onDraggingChange?.(task.id);
+
+    const origStart = task.start;
+    const origEnd   = task.end;
+    const origDate  = task.date;
+
+    function onMove(ev) {
+      const dd    = Math.round((ev.clientX - startX) / pxPerDay);
+      const draft = { ...draggingTask };
+
+      if (task.type === 'milestone') {
+        const d = parseDate(origDate); d.setDate(d.getDate() + dd);
+        draft.date = toISO(d);
+      } else if (mode === 'move') {
+        const ns = parseDate(origStart); ns.setDate(ns.getDate() + dd);
+        const ne = parseDate(origEnd);   ne.setDate(ne.getDate() + dd);
+        draft.start = toISO(ns); draft.end = toISO(ne);
+      } else if (mode === 'left') {
+        const ns = parseDate(origStart); ns.setDate(ns.getDate() + dd);
+        if (ns < parseDate(origEnd)) draft.start = toISO(ns);
+      } else if (mode === 'right') {
+        const ne = parseDate(origEnd); ne.setDate(ne.getDate() + dd);
+        if (ne > parseDate(origStart)) draft.end = toISO(ne);
+      }
+      draggingTask = draft;
+    }
+
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (draggingTask) {
+        const patch = task.type === 'milestone'
+          ? { date: draggingTask.date }
+          : { start: draggingTask.start, end: draggingTask.end };
+        onTaskUpdate(task.id, patch);
+      }
+      draggingId = null;
+      draggingTask = null;
+      onDraggingChange?.(null);
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  // Legend overlay drag (milestones / deliverables)
+  function startOverlayDrag(e, section, idx, origDate) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+
+    draggingOverlay = { section, idx, date: origDate };
+    const origPx = px(origDate);
+    const startX = e.clientX;
+
+    function onMove(ev) {
+      const newPx = Math.max(0, Math.min(ganttWidth, origPx + (ev.clientX - startX)));
+      draggingOverlay = { section, idx, date: pxToDate(newPx) };
+    }
+
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (draggingOverlay && onLegendItemUpdate) {
+        onLegendItemUpdate(draggingOverlay.section, draggingOverlay.idx, { date: draggingOverlay.date });
+      }
+      draggingOverlay = null;
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  // Get effective date for an overlay item (uses drag draft during drag)
+  function overlayDate(section, idx, item) {
+    if (draggingOverlay?.section === section && draggingOverlay.idx === idx) return draggingOverlay.date;
+    return item.date;
+  }
+</script>
+
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="gantt-scroll" bind:this={scrollEl}>
+  <div class="gantt-inner" style:width="{ganttWidth}px">
+
+    <!-- Time header (sticky) -->
+    <div class="time-hdr">
+
+      <!-- Year row -->
+      <div class="year-row">
+        {#each yearGroups as yg}
+          <div class="year-block" style:width="{yg.count * colW}px">{yg.year}</div>
+        {/each}
+      </div>
+
+      {#if zoom === 'month'}
+        <!-- Month row (monthly zoom) -->
+        <div class="month-row">
+          {#each columns as col}
+            <div class="month-cell" style:width="{colW}px">{MONTHS_SHORT[col.getMonth()]}</div>
+          {/each}
+        </div>
+      {:else}
+        <!-- Month spans + column detail rows (biweek / weekly zoom) -->
+        <div class="month-row mspan-row">
+          {#each mGroups as mg}
+            <div class="month-cell" style:width="{mg.count * colW}px">{mg.label}</div>
+          {/each}
+        </div>
+        <div class="col-row">
+          {#each columns as col}
+            <div class="col-cell" style:width="{colW}px">{col.getDate()}</div>
+          {/each}
+        </div>
+      {/if}
+
+      <!-- Markers row: draggable milestone & deliverable pills -->
+      <div class="markers-row">
+        {#each (legend?.milestones ?? []) as m, i}
+          {@const date = overlayDate('milestones', i, m)}
+          {#if date}
+            {@const mpx = px(date)}
+            {#if mpx >= -30 && mpx <= ganttWidth + 30}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="ov-pill"
+                style:left="{mpx}px"
+                style:background={m.color}
+                style:color={isLightColor(m.color) ? 'rgba(0,0,0,.65)' : '#fff'}
+                onmousedown={(e) => startOverlayDrag(e, 'milestones', i, m.date)}
+                title="{m.text} — drag to reposition"
+              >{m.code}</div>
+            {/if}
+          {/if}
+        {/each}
+        {#each (legend?.deliverables ?? []) as d, i}
+          {@const date = overlayDate('deliverables', i, d)}
+          {#if date}
+            {@const dpx = px(date)}
+            {#if dpx >= -30 && dpx <= ganttWidth + 30}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="ov-pill ov-del"
+                style:left="{dpx}px"
+                onmousedown={(e) => startOverlayDrag(e, 'deliverables', i, d.date)}
+                title="{d.text} — drag to reposition"
+              >{i + 1}</div>
+            {/if}
+          {/if}
+        {/each}
+      </div>
+
+    </div>
+
+    <!-- Gantt body -->
+    <div class="gantt-body">
+
+      <!-- Column bands -->
+      <div class="col-bands" style:height="{totalH}px">
+        {#each columns as _, i}
+          <div class="col-band" class:even={i % 2 === 0} style:width="{colW}px" style:height="{totalH}px"></div>
+        {/each}
+      </div>
+
+      <!-- Today line -->
+      {#if showToday}
+        <div class="today-ln" style:left="{todayPx}px" style:height="{totalH}px"></div>
+      {/if}
+
+      <!-- Drop indicator (milestone drag from footer) -->
+      {#if dropDate}
+        {@const dpx = px(dropDate)}
+        <div class="drop-ln" style:left="{dpx}px" style:height="{totalH}px">
+          <div class="drop-lbl">{dropDate}</div>
+        </div>
+      {/if}
+
+      <!-- Legend overlay: vertical guide lines below pills -->
+      <div class="leg-ov" style:height="{totalH}px">
+        {#each (legend?.milestones ?? []) as m, i}
+          {@const date = overlayDate('milestones', i, m)}
+          {#if date}
+            {@const mpx = px(date)}
+            {#if mpx >= 0 && mpx <= ganttWidth}
+              <div class="ov-line" style:left="{mpx}px" style:height="{totalH}px" style:border-color={m.color}></div>
+            {/if}
+          {/if}
+        {/each}
+        {#each (legend?.deliverables ?? []) as d, i}
+          {@const date = overlayDate('deliverables', i, d)}
+          {#if date}
+            {@const dpx = px(date)}
+            {#if dpx >= 0 && dpx <= ganttWidth}
+              <div class="ov-line ov-del-line" style:left="{dpx}px" style:height="{totalH}px"></div>
+            {/if}
+          {/if}
+        {/each}
+      </div>
+
+      <!-- Bar rows -->
+      <div class="bar-rows">
+        {#each displayTasks as task (task.id)}
+          <div
+            class="g-row"
+            class:row-highlight={task.id === highlightTaskId}
+            class:row-dragging={task.id === draggingId}
+          >
+
+            {#if task.type === 'milestone'}
+              {@const mpx = px(task.date)}
+              {#if mpx >= 0 && mpx <= ganttWidth}
+                {#if task.label}
+                  <div class="ms-lbl" style:left="{mpx + 8}px">{task.label}</div>
+                {/if}
+                <div class="ms-dot" style:left="{mpx}px"
+                  onmousedown={(e) => startDrag(e, task, 'move')}></div>
+              {/if}
+
+            {:else}
+              <!-- Clamp bar to visible range; badges always use raw right edge -->
+              {@const rawLeft  = px(task.start)}
+              {@const rawRight = px(task.end)}
+              {@const left     = Math.max(0, rawLeft)}
+              {@const width    = Math.max(rawRight - left, 6)}
+              {#if rawRight >= 0 && rawLeft <= ganttWidth}
+
+                <div
+                  class="bar"
+                  class:hold={task.hold}
+                  class:estimate={task.isEstimate}
+                  class:bar-clipped={rawLeft < 0}
+                  style:left="{left}px"
+                  style:width="{width}px"
+                  style:background={task.color}
+                  ondblclick={(e) => openPopup(task, e.clientX, e.clientY)}
+                  onmousedown={(e) => startDrag(e, task, 'move')}
+                >
+                  {#if task.label && !task.hold}
+                    <span class="bar-lbl" class:dk={isLightColor(task.color)}>{task.label}</span>
+                  {/if}
+                  {#if rawLeft >= 0}
+                    <div class="bar-handle lft" onmousedown={(e) => { e.stopPropagation(); startDrag(e, task, 'left'); }}></div>
+                  {/if}
+                  <div class="bar-handle rgt" onmousedown={(e) => { e.stopPropagation(); startDrag(e, task, 'right'); }}></div>
+                </div>
+
+                {#if task.delRef}
+                  <div
+                    class="bdg bdg-del"
+                    style:left="{rawRight - 9}px"
+                  >{task.delRef}</div>
+                {/if}
+
+                {#if task.msRef}
+                  {@const bx = rawRight - 9 + (task.delRef ? 14 : 0)}
+                  <div
+                    class="bdg"
+                    style:left="{bx}px"
+                    style:background={task.msRef.color}
+                    style:color={isLightColor(task.msRef.color) ? 'rgba(0,0,0,.6)' : '#fff'}
+                  >{task.msRef.code}</div>
+                {/if}
+
+              {/if}
+            {/if}
+
+          </div>
+        {/each}
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Date popup -->
+{#if popupTask}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="dp" style:left="{popupX}px" style:top="{popupY}px">
+    <div class="dp-close" onclick={closePopup}>✕</div>
+    <div class="dp-task-name">{popupTask.name}</div>
+    {#if popupTask.type === 'milestone'}
+      <div class="dp-lbl">Date</div>
+      <input type="date" value={popupTask.date} oninput={(e) => onPopupChange('date', e.target.value)}>
+    {:else}
+      <div class="dp-lbl">Start</div>
+      <input type="date" value={popupTask.start} oninput={(e) => onPopupChange('start', e.target.value)}>
+      <div class="dp-lbl">End</div>
+      <input type="date" value={popupTask.end} oninput={(e) => onPopupChange('end', e.target.value)}>
+    {/if}
+  </div>
+{/if}
+
+<style>
+  .gantt-scroll { flex: 1; overflow: auto; position: relative; min-width: 0; }
+  .gantt-inner  { position: relative; min-height: 100%; }
+
+  /* Time header */
+  .time-hdr {
+    position: sticky; top: 0; z-index: 15;
+    background: #fff;
+    border-bottom: 1px solid var(--lgray);
+  }
+  .year-row { display: flex; height: 18px; border-bottom: 1px solid var(--lgray); }
+  .year-block {
+    height: 100%; display: flex; align-items: center; padding: 0 8px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 11px;
+    letter-spacing: .05em; color: var(--black);
+    border-right: 1px solid var(--lgray); flex-shrink: 0;
+  }
+  .month-row { display: flex; height: 28px; border-bottom: 1px solid var(--lgray); }
+  .month-cell {
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 400; font-size: 9px;
+    text-transform: uppercase; letter-spacing: .07em; color: #aaa;
+    border-right: 1px dashed var(--mgray);
+  }
+
+  /* Markers row */
+  .markers-row {
+    position: relative;
+    height: 22px;
+    overflow: visible;
+  }
+  .ov-pill {
+    position: absolute;
+    top: 3px;
+    transform: translateX(-50%);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    cursor: grab;
+    white-space: nowrap;
+    box-shadow: 0 1px 4px rgba(0,0,0,.2);
+    user-select: none;
+    z-index: 20;
+    transition: box-shadow .1s;
+  }
+  .ov-pill:hover { box-shadow: 0 2px 8px rgba(0,0,0,.28); }
+  .ov-pill:active { cursor: grabbing; }
+  .ov-del { background: #D4804A; color: #fff; }
+
+  /* Gantt body */
+  .gantt-body { position: relative; }
+  .col-bands { position: absolute; top: 0; left: 0; display: flex; pointer-events: none; z-index: 0; }
+  .col-band { flex-shrink: 0; }
+  .col-band.even { background: rgba(0,0,0,.022); }
+
+  /* Lines */
+  .today-ln {
+    position: absolute; top: 0; width: 2px; background: var(--black); z-index: 4; pointer-events: none;
+  }
+  .today-ln::before {
+    content: ''; position: absolute; top: -1px; left: -4px;
+    border: 5px solid transparent; border-top-color: var(--black);
+    border-bottom: none; transform: translateX(-1px);
+  }
+  .drop-ln {
+    position: absolute; top: 0; width: 0; z-index: 8; pointer-events: none;
+    border-left: 2px dashed var(--blue);
+  }
+  .drop-lbl {
+    position: absolute; top: 4px; left: 5px;
+    background: var(--blue); color: #fff;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 600;
+    padding: 2px 5px; border-radius: 2px; white-space: nowrap;
+  }
+
+  /* Legend overlay lines */
+  .leg-ov { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; z-index: 3; }
+  .ov-line {
+    position: absolute; top: 0; width: 0;
+    border-left: 1.5px dashed;
+    opacity: .3;
+  }
+  .ov-del-line { border-color: #D4804A; }
+
+  /* Rows */
+  .bar-rows { position: relative; z-index: 4; }
+  .g-row    { height: 34px; position: relative; border-bottom: 1px solid var(--lgray); overflow: visible; }
+  .row-highlight { background: rgba(32,171,226,.14) !important; }
+  .row-dragging  { background: rgba(0,0,0,.04); }
+
+  /* Bars */
+  .bar {
+    position: absolute; top: 7px; height: 20px;
+    border-radius: 2px; cursor: grab; display: flex; align-items: center;
+    overflow: visible; user-select: none; z-index: 5; min-width: 6px;
+    transition: filter .1s;
+  }
+  .bar:hover { filter: brightness(1.08); z-index: 6; }
+  .bar:active { cursor: grabbing; }
+  .bar-clipped { border-radius: 0 2px 2px 0; }
+  .bar.hold::before {
+    content: ''; position: absolute; inset: -1px;
+    border: 2px dashed rgba(0,0,0,.4); border-radius: 3px; pointer-events: none;
+  }
+  .bar.estimate {
+    clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 50%, calc(100% - 11px) 100%, 0 100%);
+  }
+  .bar-lbl {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 9.5px;
+    letter-spacing: .03em; color: rgba(255,255,255,.9);
+    white-space: nowrap; overflow: hidden; padding: 0 7px; pointer-events: none; flex: 1; min-width: 0;
+  }
+  .bar-lbl.dk { color: rgba(0,0,0,.6); }
+  .bar-handle {
+    position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 5;
+  }
+  .bar-handle.lft { left: 0; border-radius: 2px 0 0 2px; }
+  .bar-handle.rgt { right: 0; border-radius: 0 2px 2px 0; }
+
+  /* Milestones (task-row) */
+  .ms-dot {
+    position: absolute; top: 50%; transform: translate(-50%, -50%);
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--black); background: #fff; z-index: 6; cursor: grab;
+  }
+  .ms-dot:active { cursor: grabbing; }
+  .ms-lbl {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 9px;
+    color: var(--black); white-space: nowrap; padding-left: 10px; pointer-events: none;
+  }
+
+  /* Badges */
+  .bdg {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 8px;
+    color: #fff; z-index: 7; pointer-events: none;
+  }
+  .bdg-del { background: #D4804A; }
+
+  /* Date popup */
+  .dp {
+    position: fixed; background: #fff;
+    border: 1px solid var(--lgray); border-radius: 4px;
+    padding: 14px 16px 12px; box-shadow: 0 6px 22px rgba(0,0,0,.14);
+    z-index: 500; font-family: 'Barlow Condensed', sans-serif; min-width: 210px;
+  }
+  .dp-close {
+    position: absolute; top: 8px; right: 10px;
+    cursor: pointer; color: #bbb; font-size: 14px; line-height: 1;
+  }
+  .dp-close:hover { color: var(--black); }
+  .dp-task-name { font-weight: 700; font-size: 12px; margin-bottom: 10px; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dp-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: #aaa; margin-bottom: 3px; margin-top: 8px; }
+  .dp input[type="date"] {
+    width: 100%; border: 1px solid var(--lgray); border-radius: 2px;
+    padding: 5px 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; outline: none;
+  }
+  .dp input[type="date"]:focus { border-color: var(--blue); }
+</style>
