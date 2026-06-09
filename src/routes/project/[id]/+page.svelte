@@ -26,10 +26,12 @@
   let ganttMonths = $derived(project ? monthList(parseDate(project.viewStart), parseDate(project.viewEnd)) : []);
   let ganttWidth  = $derived(ganttMonths.length * COL_W);
 
+  const TASK_COL_W = 252;
+
   function xToDate(clientX) {
-    if (!ganttScrollEl || !project) return null;
-    const rect = ganttScrollEl.getBoundingClientRect();
-    const relX  = clientX - rect.left + ganttScrollEl.scrollLeft;
+    if (!schScrollEl || !project) return null;
+    const rect = schScrollEl.getBoundingClientRect();
+    const relX  = clientX - rect.left - TASK_COL_W + schScrollEl.scrollLeft;
     const vs    = parseDate(project.viewStart);
     const ve    = parseDate(project.viewEnd);
     const ms    = vs.getTime() + (relX / ganttWidth) * (ve - vs);
@@ -38,9 +40,9 @@
   }
 
   function isOverGantt(clientX, clientY) {
-    if (!ganttScrollEl) return false;
-    const r = ganttScrollEl.getBoundingClientRect();
-    return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+    if (!schScrollEl) return false;
+    const r = schScrollEl.getBoundingClientRect();
+    return clientX >= r.left + TASK_COL_W && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
   }
 
   function startMilestoneDrag(ms) {
@@ -97,25 +99,11 @@
     highlightTaskId = task.id;
     // Scroll the row into view (task panel list)
     const idx = project.tasks.indexOf(task);
-    if (ganttScrollEl) ganttScrollEl.scrollTop = idx * 34;
-    if (taskListEl) taskListEl.scrollTop = idx * 34;
+    if (schScrollEl) schScrollEl.scrollTop = idx * 34;
     setTimeout(() => { highlightTaskId = null; }, 1800);
   }
 
-  // Scroll sync refs
-  let ganttScrollEl = $state(null);
-  let taskListEl    = $state(null);
-  $effect(() => {
-    if (!ganttScrollEl || !taskListEl) return;
-    const fromGantt = () => { if (taskListEl.scrollTop !== ganttScrollEl.scrollTop) taskListEl.scrollTop = ganttScrollEl.scrollTop; };
-    const fromTask  = () => { if (ganttScrollEl.scrollTop !== taskListEl.scrollTop) ganttScrollEl.scrollTop = taskListEl.scrollTop; };
-    ganttScrollEl.addEventListener('scroll', fromGantt);
-    taskListEl.addEventListener('scroll', fromTask);
-    return () => {
-      ganttScrollEl.removeEventListener('scroll', fromGantt);
-      taskListEl.removeEventListener('scroll', fromTask);
-    };
-  });
+  let schScrollEl = $state(null);
 
   // Store callbacks
   function handleTaskUpdate(taskId, patch) {
@@ -300,31 +288,33 @@
     <!-- Main schedule area -->
     <div class="sch-body">
       <div class="sch-main">
+        <div class="sch-scroll" bind:this={schScrollEl}>
+          <div class="sch-inner" style:width="{TASK_COL_W + ganttWidth}px">
 
-        <TaskPanel
-          tasks={project.tasks}
-          onRename={handleRename}
-          onDelete={handleDelete}
-          onReorder={handleReorder}
-          onAdd={handleAdd}
-          bind:listEl={taskListEl}
-          highlightId={draggingTaskId}
-        />
+            <TaskPanel
+              tasks={project.tasks}
+              onRename={handleRename}
+              onDelete={handleDelete}
+              onReorder={handleReorder}
+              onAdd={handleAdd}
+              highlightId={draggingTaskId}
+            />
 
-        <GanttPanel
-          tasks={project.tasks}
-          viewStart={project.viewStart}
-          viewEnd={project.viewEnd}
-          todayMark={project.todayMark}
-          legend={project.legend}
-          dropDate={dropDate}
-          highlightTaskId={highlightTaskId}
-          onTaskUpdate={handleTaskUpdate}
-          onLegendItemUpdate={handleLegendItemUpdate}
-          onDraggingChange={handleDraggingChange}
-          bind:scrollEl={ganttScrollEl}
-        />
+            <GanttPanel
+              tasks={project.tasks}
+              viewStart={project.viewStart}
+              viewEnd={project.viewEnd}
+              todayMark={project.todayMark}
+              legend={project.legend}
+              dropDate={dropDate}
+              highlightTaskId={highlightTaskId}
+              onTaskUpdate={handleTaskUpdate}
+              onLegendItemUpdate={handleLegendItemUpdate}
+              onDraggingChange={handleDraggingChange}
+            />
 
+          </div>
+        </div>
       </div>
 
       <LegendFooter
@@ -553,10 +543,11 @@
   }
   .sch-main {
     flex: 1;
-    display: flex;
     overflow: hidden;
     min-height: 0;
   }
+  .sch-scroll { width: 100%; height: 100%; overflow: auto; }
+  .sch-inner  { display: flex; min-height: 100%; }
 
   /* R3A print mark */
   .r3a-mark {

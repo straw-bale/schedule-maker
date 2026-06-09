@@ -1,7 +1,7 @@
 <script>
   const ROW_H = 34;
 
-  let { tasks, onRename, onDelete, onReorder, onAdd, listEl = $bindable(), highlightId = null } = $props();
+  let { tasks, onRename, onDelete, onReorder, onAdd, highlightId = null } = $props();
 
   function initRowDrag(handle, taskIdx) {
     handle.addEventListener('mousedown', e => {
@@ -71,7 +71,7 @@
 <div class="task-panel">
   <div class="col-hdr-lbl">Milestones, Tasks &amp; Deliverables</div>
 
-  <div class="task-list" bind:this={listEl}>
+  <div class="task-list">
     {#each tasks as task, i (task.id)}
       <div class="t-row" class:t-highlight={task.id === highlightId}>
         <div class="t-drag" title="Drag to reorder" use:mountDrag={i}>⠿</div>
@@ -99,6 +99,8 @@
     flex-direction: column;
     background: #fff;
     z-index: 20;
+    position: sticky;
+    left: 0;
   }
   .col-hdr-lbl {
     height: 68px; /* matches GanttPanel time header: year(18) + month(28) + markers(22) */
@@ -113,14 +115,14 @@
     color: #999;
     border-bottom: 1px solid var(--lgray);
     flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 21;
+    background: #fff;
   }
   .task-list {
-    flex: 1;
-    overflow-y: scroll;
-    scrollbar-width: none;
     position: relative;
   }
-  .task-list::-webkit-scrollbar { display: none; }
   .t-row {
     height: 34px;
     display: flex;

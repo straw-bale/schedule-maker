@@ -6,7 +6,6 @@
   let {
     tasks, viewStart: vsStr, viewEnd: veStr, todayMark: tmStr,
     onTaskUpdate, onLegendItemUpdate = null, onDraggingChange = null,
-    scrollEl = $bindable(),
     legend = null, dropDate = null, highlightTaskId = null,
     zoom = 'month',
   } = $props();
@@ -185,7 +184,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="gantt-scroll" bind:this={scrollEl}>
+<div class="gantt-scroll">
   <div class="gantt-inner" style:width="{ganttWidth}px">
 
     <!-- Time header (sticky) -->
@@ -380,7 +379,7 @@
 {/if}
 
 <style>
-  .gantt-scroll { flex: 1; overflow: auto; position: relative; min-width: 0; }
+  .gantt-scroll { flex: 1; position: relative; min-width: 0; }
   .gantt-inner  { position: relative; min-height: 100%; }
 
   /* Time header */
