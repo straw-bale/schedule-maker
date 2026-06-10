@@ -1,21 +1,89 @@
 <script>
   import { projectStore } from '$lib/stores/projects.js';
-  import { createBlankProject, createSampleProject } from '$lib/data/sample.js';
+  import { createBlankProject, createSmallTemplate, createMediumTemplate, createLargeTemplate } from '$lib/data/sample.js';
   import { goto } from '$app/navigation';
 
   let projects = $state([]);
   projectStore.subscribe(v => { projects = v; });
 
+  let templateModal = $state(false);
+
+  // Preview bar definitions for each template card.
+  // Each bar: { l: left%, w: width%, c: color } — one bar per task row.
+  const TEMPLATES = [
+    {
+      key:  'blank',
+      type: 'Blank',
+      name: 'Empty Project',
+      desc: 'Start from scratch. No tasks, no dates — just an empty timeline ready for your input.',
+      meta: '1 task · Custom duration',
+      bars: [],
+    },
+    {
+      key:  'small',
+      type: 'Small',
+      name: 'Renovation / TI',
+      desc: 'SD through construction for smaller scopes. Standard client review, single CD submission.',
+      meta: '~11 months · 10 tasks',
+      bars: [
+        { l:0,  w:14, c:'#8B9A3A' },  // SD
+        { l:14, w:14, c:'#6B7A2A' },  // DD
+        { l:28, w:7,  c:'#90D5F1' },  // DD Review
+        { l:35, w:14, c:'#3D5018' },  // CDs
+        { l:49, w:7,  c:'#90D5F1' },  // CD Review
+        { l:56, w:9,  c:'#282829' },  // Bidding
+        { l:65, w:28, c:'#3B8FA0' },  // Construction
+        { l:93, w:7,  c:'#282829' },  // Closeout
+      ],
+    },
+    {
+      key:  'medium',
+      type: 'Medium',
+      name: 'Commercial / Institutional',
+      desc: 'Full AE phase sequence — SD, 50%, 95%, 100%, CDs — with client review cycles at each milestone.',
+      meta: '~22 months · 13 tasks',
+      bars: [
+        { l:0,  w:9,  c:'#8B9A3A' },
+        { l:9,  w:5,  c:'#90D5F1' },
+        { l:14, w:12, c:'#8B9A3A' },
+        { l:26, w:5,  c:'#90D5F1' },
+        { l:31, w:9,  c:'#6B7A2A' },
+        { l:40, w:5,  c:'#90D5F1' },
+        { l:45, w:7,  c:'#3D5018' },
+        { l:52, w:5,  c:'#282829' },
+        { l:57, w:5,  c:'#282829' },
+        { l:62, w:30, c:'#3B8FA0' },
+        { l:92, w:7,  c:'#282829' },
+      ],
+    },
+    {
+      key:  'large',
+      type: 'Large',
+      name: 'Large / Complex',
+      desc: 'Extended owner review cycles at each submission, permitting phase, and major construction period.',
+      meta: '~34 months · 17 tasks',
+      bars: [
+        { l:0,  w:7,  c:'#8B9A3A' },
+        { l:7,  w:4,  c:'#90D5F1' },
+        { l:11, w:8,  c:'#8B9A3A' },
+        { l:19, w:4,  c:'#90D5F1' },
+        { l:23, w:7,  c:'#6B7A2A' },
+        { l:30, w:4,  c:'#90D5F1' },
+        { l:34, w:5,  c:'#3D5018' },
+        { l:39, w:4,  c:'#90D5F1' },
+        { l:43, w:4,  c:'#282829' },
+        { l:47, w:7,  c:'#A0522D' },
+        { l:54, w:39, c:'#3B8FA0' },
+        { l:93, w:5,  c:'#282829' },
+      ],
+    },
+  ];
+
   function openProject(id) { goto(`/project/${id}`); }
 
-  function newProject() {
-    const p = createBlankProject();
-    projectStore.addProject(p);
-    goto(`/project/${p.id}`);
-  }
-
-  function addSample() {
-    const p = createSampleProject();
+  function createProject(key) {
+    const fn = { blank: createBlankProject, small: createSmallTemplate, medium: createMediumTemplate, large: createLargeTemplate }[key];
+    const p = fn();
     projectStore.addProject(p);
     goto(`/project/${p.id}`);
   }
@@ -49,8 +117,7 @@
     <div class="top-bar">
       <h2 class="section-hdr">Projects</h2>
       <div class="top-actions">
-        <button class="btn-secondary" onclick={addSample}>+ Sample Project</button>
-        <button class="btn-primary" onclick={newProject}>+ New Project</button>
+        <button class="btn-primary" onclick={() => templateModal = true}>+ New Project</button>
       </div>
     </div>
 
@@ -78,14 +145,16 @@
               <span class="card-tasks">{project.tasks?.length || 0} tasks</span>
             </div>
           </div>
-          <button class="card-delete" title="Delete project" onclick={(e) => deleteProject(e, project.id)}>✕</button>
+          {#if projects.length > 1}
+            <button class="card-delete" title="Delete project" onclick={(e) => deleteProject(e, project.id)}>✕</button>
+          {/if}
         </div>
       {/each}
 
       {#if projects.length === 0}
         <div class="empty-state">
           <p>No projects yet.</p>
-          <button class="btn-primary" onclick={newProject}>Create your first project</button>
+          <button class="btn-primary" onclick={() => templateModal = true}>Create your first project</button>
         </div>
       {/if}
     </div>
@@ -96,6 +165,59 @@
     <span class="foot-copy">R3A Solutions · Schedule Maker</span>
   </footer>
 </div>
+
+<!-- Template picker modal -->
+{#if templateModal}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="tm-overlay" onclick={() => templateModal = false}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="tm-panel" onclick={(e) => e.stopPropagation()}>
+
+      <div class="tm-hdr">
+        <span class="tm-hdr-title">New Project</span>
+        <button class="tm-x" onclick={() => templateModal = false}>✕</button>
+      </div>
+
+      <div class="tm-body">
+        <div class="tm-cards">
+          {#each TEMPLATES as tpl}
+            <button class="tm-card" onclick={() => createProject(tpl.key)}>
+              <div class="tm-type">{tpl.type}</div>
+
+              <!-- Mini Gantt preview -->
+              <div class="tm-preview" style:height="{tpl.bars.length > 0 ? tpl.bars.length * 7 + 4 : 52}px">
+                {#if tpl.bars.length === 0}
+                  <div class="tm-blank-lines">
+                    <div class="tm-blank-line" style:width="40%"></div>
+                    <div class="tm-blank-line" style:width="65%"></div>
+                    <div class="tm-blank-line" style:width="55%"></div>
+                  </div>
+                {:else}
+                  {#each tpl.bars as bar, i}
+                    <div
+                      class="tm-bar"
+                      style:left="{bar.l}%"
+                      style:width="{bar.w}%"
+                      style:top="{i * 7}px"
+                      style:background={bar.c}
+                    ></div>
+                  {/each}
+                {/if}
+              </div>
+
+              <div class="tm-info">
+                <div class="tm-name">{tpl.name}</div>
+                <div class="tm-desc">{tpl.desc}</div>
+                <div class="tm-meta">{tpl.meta}</div>
+              </div>
+            </button>
+          {/each}
+        </div>
+      </div>
+
+    </div>
+  </div>
+{/if}
 
 <style>
   .home {
@@ -178,21 +300,6 @@
     transition: background .12s;
   }
   .btn-primary:hover { background: #1A93C8; }
-  .btn-secondary {
-    background: transparent;
-    color: var(--black);
-    border: 1px solid var(--lgray);
-    border-radius: 3px;
-    padding: 9px 18px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 600;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: .08em;
-    cursor: pointer;
-    transition: border-color .12s, background .12s;
-  }
-  .btn-secondary:hover { border-color: var(--blue); background: rgba(32,171,226,.04); }
 
   /* Grid */
   .project-grid {
@@ -314,5 +421,113 @@
     color: rgba(255,255,255,.25);
     text-transform: uppercase;
     letter-spacing: .1em;
+  }
+
+  /* ── Template picker modal ────────────────────────────────────── */
+  .tm-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.52);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 800;
+  }
+  .tm-panel {
+    background: #fff;
+    border-radius: 4px;
+    width: min(980px, 94vw);
+    max-height: 90vh;
+    overflow: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  .tm-hdr {
+    background: var(--black);
+    padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-radius: 4px 4px 0 0;
+    position: sticky; top: 0;
+  }
+  .tm-hdr-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700; font-size: 15px;
+    text-transform: uppercase; letter-spacing: .06em;
+    color: #fff;
+  }
+  .tm-x {
+    background: none; border: none;
+    color: rgba(255,255,255,.4); font-size: 17px; line-height: 1;
+    cursor: pointer; transition: color .12s; padding: 0;
+  }
+  .tm-x:hover { color: #fff; }
+
+  .tm-body { padding: 20px; }
+  .tm-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+
+  .tm-card {
+    background: none;
+    border: 1.5px solid var(--lgray);
+    border-radius: 4px;
+    padding: 16px 14px 14px;
+    cursor: pointer; text-align: left;
+    display: flex; flex-direction: column;
+    transition: border-color .15s, transform .12s, box-shadow .15s;
+  }
+  .tm-card:hover {
+    border-color: var(--blue);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 22px rgba(0,0,0,.1);
+  }
+
+  /* Type label */
+  .tm-type {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700; font-size: 10px;
+    text-transform: uppercase; letter-spacing: .16em;
+    color: #bbb; margin-bottom: 10px;
+    transition: color .15s;
+  }
+  .tm-card:hover .tm-type { color: var(--blue); }
+
+  /* Mini gantt preview */
+  .tm-preview {
+    position: relative; width: 100%;
+    background: rgba(0,0,0,.04);
+    border-radius: 2px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .tm-bar {
+    position: absolute; height: 4px; border-radius: 2px;
+  }
+  .tm-blank-lines {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    justify-content: center; gap: 7px;
+    padding: 10px 12px;
+  }
+  .tm-blank-line {
+    height: 4px; border-radius: 2px;
+    background: rgba(0,0,0,.1);
+  }
+
+  /* Card info */
+  .tm-info { display: flex; flex-direction: column; flex: 1; }
+  .tm-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700; font-size: 14px;
+    color: var(--black); margin-bottom: 5px;
+  }
+  .tm-desc {
+    font-family: 'Barlow', sans-serif;
+    font-size: 10.5px; color: #888; line-height: 1.55;
+    flex: 1; margin-bottom: 10px;
+  }
+  .tm-meta {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+    color: #bbb;
+    border-top: 1px solid var(--lgray); padding-top: 8px;
   }
 </style>

@@ -1,9 +1,13 @@
 <script>
   const ROW_H = 34;
 
-  let { tasks, onRename, onDelete, onReorder, onAdd, highlightId = null } = $props();
+  let { tasks, onRename, onDelete, onReorder, onAdd, highlightId = null, zoom = 'month' } = $props();
 
-  function initRowDrag(handle, taskIdx) {
+  // monthly: year(18) + month(28) + markers(22) = 68px
+  // biweek/week: year(18) + mspan(28) + col(22) + markers(22) = 90px
+  let hdrH = $derived(zoom === 'month' ? 68 : 90);
+
+  function initRowDrag(handle) {
     handle.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       e.preventDefault(); e.stopPropagation();
@@ -12,19 +16,28 @@
       const rowEl   = handle.closest('.t-row');
       const rowRect = rowEl.getBoundingClientRect();
 
-      const ghost = document.createElement('div');
-      ghost.className = 't-ghost';
-      ghost.style.cssText = `top:${rowRect.top}px;left:${rowRect.left}px;width:${rowRect.width}px;height:${ROW_H}px;`;
-      ghost.textContent = tasks[taskIdx].name;
-      document.body.appendChild(ghost);
+      let dragActivated = false;
+      let ghost  = null;
+      let spacer = null;
+      let insertAt = -1;
 
-      const spacer = document.createElement('div');
-      spacer.className = 't-drop-spacer';
+      function activate() {
+        const allRows = [...list.querySelectorAll('.t-row')];
+        insertAt = allRows.indexOf(rowEl);
 
-      rowEl.classList.add('dragging');
-      rowEl.after(spacer);
+        ghost = document.createElement('div');
+        ghost.className = 't-ghost';
+        ghost.style.cssText = `top:${rowRect.top}px;left:${rowRect.left}px;width:${rowRect.width}px;height:${ROW_H}px;`;
+        ghost.textContent = rowEl.querySelector('.t-name').textContent;
+        document.body.appendChild(ghost);
 
-      let insertAt = taskIdx;
+        spacer = document.createElement('div');
+        spacer.className = 't-drop-spacer';
+
+        rowEl.classList.add('dragging');
+        rowEl.after(spacer);
+        dragActivated = true;
+      }
 
       function visibleRows() {
         return [...list.querySelectorAll('.t-row')].filter(el => el !== rowEl);
@@ -45,6 +58,10 @@
       }
 
       function onMove(ev) {
+        if (!dragActivated) {
+          if (Math.abs(ev.clientY - e.clientY) < 4) return;
+          activate();
+        }
         ghost.style.top = (rowRect.top + ev.clientY - e.clientY) + 'px';
         updateSpacerPos(ev.clientY);
       }
@@ -52,9 +69,12 @@
       function onUp() {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
+        if (!dragActivated) return;
         ghost.remove();
         spacer.remove();
         rowEl.classList.remove('dragging');
+        const allRows = [...list.querySelectorAll('.t-row')];
+        const taskIdx = allRows.indexOf(rowEl);
         if (insertAt !== taskIdx) onReorder(taskIdx, insertAt);
       }
 
@@ -63,18 +83,18 @@
     });
   }
 
-  function mountDrag(el, idx) {
-    initRowDrag(el, idx);
+  function mountDrag(el) {
+    initRowDrag(el);
   }
 </script>
 
 <div class="task-panel">
-  <div class="col-hdr-lbl">Milestones, Tasks &amp; Deliverables</div>
+  <div class="col-hdr-lbl" style:height="{hdrH}px">Milestones, Tasks &amp; Deliverables</div>
 
   <div class="task-list">
     {#each tasks as task, i (task.id)}
       <div class="t-row" class:t-highlight={task.id === highlightId}>
-        <div class="t-drag" title="Drag to reorder" use:mountDrag={i}>⠿</div>
+        <div class="t-drag" title="Drag to reorder" use:mountDrag>⠿</div>
         <div
           class="t-name"
           contenteditable="true"
@@ -103,7 +123,7 @@
     left: 0;
   }
   .col-hdr-lbl {
-    height: 68px; /* matches GanttPanel time header: year(18) + month(28) + markers(22) */
+    /* height set inline: 68px monthly, 90px biweek/week */
     display: flex;
     align-items: flex-end;
     padding: 0 12px 8px;

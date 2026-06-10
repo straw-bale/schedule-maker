@@ -154,6 +154,9 @@
   let draggingTaskId = $state(null);
   function handleDraggingChange(id) { draggingTaskId = id; }
 
+  let zoom          = $state('month');
+  let showTodayLine = $state(true);
+
   // Timeline range controls
   function adjustView(startDelta, endDelta) {
     if (!project) return;
@@ -276,6 +279,19 @@
       </div>
 
       <div class="tl-end tl-end-right">
+        <div class="view-opts">
+          <div class="zoom-ctrl">
+            <button class="zoom-btn" class:zoom-active={zoom === 'month'}  onclick={() => zoom = 'month'} >Mo</button>
+            <button class="zoom-btn" class:zoom-active={zoom === 'biweek'} onclick={() => zoom = 'biweek'}>2W</button>
+            <button class="zoom-btn" class:zoom-active={zoom === 'week'}   onclick={() => zoom = 'week'}>Wk</button>
+          </div>
+          <button
+            class="today-toggle"
+            class:today-toggle-on={showTodayLine}
+            onclick={() => showTodayLine = !showTodayLine}
+            title="Toggle today line"
+          ><span class="today-pip"></span>Today</button>
+        </div>
         <div class="tl-ctrl">
           <button class="tl-btn" onclick={() => adjustView(0, -1)} title="Remove one month from the end">←</button>
           <span class="tl-date">{fmtMonthYear(project.viewEnd)}</span>
@@ -298,6 +314,7 @@
               onReorder={handleReorder}
               onAdd={handleAdd}
               highlightId={draggingTaskId}
+              zoom={zoom}
             />
 
             <GanttPanel
@@ -311,6 +328,8 @@
               onTaskUpdate={handleTaskUpdate}
               onLegendItemUpdate={handleLegendItemUpdate}
               onDraggingChange={handleDraggingChange}
+              zoom={zoom}
+              showTodayLine={showTodayLine}
             />
 
           </div>
@@ -532,6 +551,49 @@
     line-height: 1;
   }
   .tl-shift:hover { color: var(--black); }
+
+  /* View options group (zoom + today toggle) */
+  .view-opts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 10px;
+  }
+  .zoom-ctrl {
+    display: flex;
+    background: #fff;
+    border: 1px solid var(--lgray);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .zoom-btn {
+    background: none; border: none; border-right: 1px solid var(--lgray);
+    padding: 0 8px; height: 22px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 10px;
+    text-transform: uppercase; letter-spacing: .06em;
+    color: #aaa; cursor: pointer; transition: background .1s, color .1s;
+    line-height: 1;
+  }
+  .zoom-btn:last-child { border-right: none; }
+  .zoom-btn:hover:not(.zoom-active) { background: rgba(32,171,226,.08); color: var(--blue); }
+  .zoom-active { background: var(--blue); color: #fff; }
+
+  /* Today toggle — no button chrome, just a pip + label */
+  .today-toggle {
+    background: none; border: none; padding: 0;
+    display: flex; align-items: center; gap: 4px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 10px;
+    text-transform: uppercase; letter-spacing: .08em;
+    color: #ccc; cursor: pointer;
+    transition: color .15s;
+  }
+  .today-toggle:hover { color: #999; }
+  .today-toggle-on { color: var(--black); }
+  .today-pip {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: currentColor; flex-shrink: 0;
+    transition: background .15s;
+  }
 
   /* Body */
   .sch-body {

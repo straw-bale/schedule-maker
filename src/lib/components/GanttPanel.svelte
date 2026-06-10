@@ -7,7 +7,7 @@
     tasks, viewStart: vsStr, viewEnd: veStr, todayMark: tmStr,
     onTaskUpdate, onLegendItemUpdate = null, onDraggingChange = null,
     legend = null, dropDate = null, highlightTaskId = null,
-    zoom = 'month',
+    zoom = 'month', showTodayLine = true,
   } = $props();
 
   let viewStart  = $derived(parseDate(vsStr));
@@ -41,7 +41,7 @@
   });
 
   let todayPx   = $derived(dateToPx(tmStr, viewStart, viewEnd, ganttWidth));
-  let showToday = $derived(todayPx >= 0 && todayPx <= ganttWidth);
+  let showToday = $derived(showTodayLine && !!tmStr && todayPx >= 0 && todayPx <= ganttWidth);
 
   // Local bar drag state
   let draggingId   = $state(null);
@@ -401,6 +401,12 @@
     font-family: 'Barlow Condensed', sans-serif; font-weight: 400; font-size: 9px;
     text-transform: uppercase; letter-spacing: .07em; color: #aaa;
     border-right: 1px dashed var(--mgray);
+  }
+  .col-row { display: flex; height: 22px; border-bottom: 1px solid var(--lgray); }
+  .col-cell {
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 500; font-size: 9px;
+    color: #bbb; border-right: 1px solid var(--lgray);
   }
 
   /* Markers row */
