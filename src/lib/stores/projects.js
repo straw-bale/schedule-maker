@@ -1,80 +1,74 @@
 import { writable } from 'svelte/store';
 import { createSampleProject } from '$lib/data/sample.js';
-import { supabase } from '$lib/supabase.js';
+
+const LS_KEY = 'r3a_projects';
 
 const { subscribe, update, set } = writable([]);
 
-// Debounced saves — rapid updates (e.g. dragging bars) coalesce into one write.
-const _saveTimers = new Map();
-
-function _saveProject(project) {
-  clearTimeout(_saveTimers.get(project.id));
-  _saveTimers.set(project.id, setTimeout(async () => {
-    const { error } = await supabase
-      .from('projects')
-      .upsert({ id: project.id, title: project.title ?? '', data: project }, { onConflict: 'id' });
-    if (error) console.error('[projects] save failed:', error.message);
-  }, 800));
+function _persist(projects) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(projects));
+  } catch (e) {
+    console.error('[projects] localStorage save failed:', e);
+  }
 }
 
-async function _deleteProject(id) {
-  const { error } = await supabase.from('projects').delete().eq('id', id);
-  if (error) console.error('[projects] delete failed:', error.message);
+// Debounced persist — coalesces rapid updates (e.g. dragging bars).
+let _saveTimer = null;
+function _scheduleSave() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    let current = [];
+    const unsub = subscribe(ps => { current = ps; });
+    unsub();
+    _persist(current);
+  }, 400);
 }
 
-// Update a single project in the store and queue a save.
 function _updateAndSave(projectId, fn) {
-  let saved = null;
-  update(ps => ps.map(p => {
-    if (p.id !== projectId) return p;
-    saved = fn(p);
-    return saved;
-  }));
-  if (saved) _saveProject(saved);
+  update(ps => {
+    const next = ps.map(p => p.id === projectId ? fn(p) : p);
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(() => _persist(next), 400);
+    return next;
+  });
 }
 
 export const projectStore = {
   subscribe,
 
-  // Call once on app mount. Loads all projects from Supabase; seeds with a
-  // sample project if the table is empty. If the user adds a project while
-  // the async fetch is in flight, their project takes precedence.
-  async init() {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('data')
-      .order('created_at', { ascending: true });
-
-    // Read current store state after the await — user may have added a project
-    // while the Supabase fetch was in flight. Don't overwrite their work.
-    let current = [];
-    const unsub = subscribe(ps => { current = ps; });
-    unsub();
-    if (current.length > 0) return;
-
-    if (error) {
-      console.error('[projects] init failed:', error.message);
-      set([createSampleProject()]);
-      return;
+  init() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const projects = JSON.parse(raw);
+        if (Array.isArray(projects) && projects.length > 0) {
+          set(projects);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('[projects] localStorage load failed:', e);
     }
-
-    if (!data?.length) {
-      const sample = createSampleProject();
-      set([sample]);
-      _saveProject(sample);
-    } else {
-      set(data.map(row => row.data));
-    }
+    const sample = createSampleProject();
+    set([sample]);
+    _persist([sample]);
   },
 
   addProject(project) {
-    update(ps => [...ps, project]);
-    _saveProject(project);
+    update(ps => {
+      const next = [...ps, project];
+      _persist(next);
+      return next;
+    });
   },
 
   deleteProject(id) {
-    update(ps => ps.filter(p => p.id !== id));
-    _deleteProject(id);
+    update(ps => {
+      const next = ps.filter(p => p.id !== id);
+      _persist(next);
+      return next;
+    });
   },
 
   updateMeta(id, patch) {

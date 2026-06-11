@@ -1,13 +1,24 @@
 <script>
-  import { supabase } from '$lib/supabase.js';
+  import { env } from '$env/dynamic/public';
 
   let open    = $state(false);
   let message = $state('');
   let status  = $state('idle'); // 'idle' | 'sending' | 'sent' | 'error'
 
+  const hasSupabase = !!(env.PUBLIC_SUPABASE_URL && env.PUBLIC_SUPABASE_ANON_KEY);
+
   async function submit() {
     if (!message.trim()) return;
     status = 'sending';
+    if (!hasSupabase) {
+      // No backend yet — just acknowledge the message locally.
+      console.log('[feedback]', message.trim());
+      status = 'sent';
+      message = '';
+      setTimeout(() => { open = false; status = 'idle'; }, 1800);
+      return;
+    }
+    const { supabase } = await import('$lib/supabase.js');
     const { error } = await supabase.from('feedback').insert({
       message: message.trim(),
       page:    typeof window !== 'undefined' ? window.location.pathname : '',
