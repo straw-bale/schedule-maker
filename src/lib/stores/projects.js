@@ -1,71 +1,130 @@
 import { writable } from 'svelte/store';
 import { createSampleProject } from '$lib/data/sample.js';
+import { supabase } from '$lib/supabase.js';
 
-const { subscribe, update } = writable([createSampleProject()]);
+const { subscribe, update, set } = writable([]);
+
+// Debounced saves — rapid updates (e.g. dragging bars) coalesce into one write.
+const _saveTimers = new Map();
+
+function _saveProject(project) {
+  clearTimeout(_saveTimers.get(project.id));
+  _saveTimers.set(project.id, setTimeout(async () => {
+    const { error } = await supabase
+      .from('projects')
+      .upsert({ id: project.id, title: project.title ?? '', data: project }, { onConflict: 'id' });
+    if (error) console.error('[projects] save failed:', error.message);
+  }, 800));
+}
+
+async function _deleteProject(id) {
+  const { error } = await supabase.from('projects').delete().eq('id', id);
+  if (error) console.error('[projects] delete failed:', error.message);
+}
+
+// Update a single project in the store and queue a save.
+function _updateAndSave(projectId, fn) {
+  let saved = null;
+  update(ps => ps.map(p => {
+    if (p.id !== projectId) return p;
+    saved = fn(p);
+    return saved;
+  }));
+  if (saved) _saveProject(saved);
+}
 
 export const projectStore = {
   subscribe,
 
+  // Call once on app mount. Loads all projects from Supabase; seeds with a
+  // sample project if the table is empty. If the user adds a project while
+  // the async fetch is in flight, their project takes precedence.
+  async init() {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('data')
+      .order('created_at', { ascending: true });
+
+    // Read current store state after the await — user may have added a project
+    // while the Supabase fetch was in flight. Don't overwrite their work.
+    let current = [];
+    const unsub = subscribe(ps => { current = ps; });
+    unsub();
+    if (current.length > 0) return;
+
+    if (error) {
+      console.error('[projects] init failed:', error.message);
+      set([createSampleProject()]);
+      return;
+    }
+
+    if (!data?.length) {
+      const sample = createSampleProject();
+      set([sample]);
+      _saveProject(sample);
+    } else {
+      set(data.map(row => row.data));
+    }
+  },
+
   addProject(project) {
     update(ps => [...ps, project]);
+    _saveProject(project);
   },
 
   deleteProject(id) {
     update(ps => ps.filter(p => p.id !== id));
+    _deleteProject(id);
   },
 
   updateMeta(id, patch) {
-    update(ps => ps.map(p => p.id === id ? { ...p, ...patch } : p));
+    _updateAndSave(id, p => ({ ...p, ...patch }));
   },
 
   updateTask(projectId, taskId, patch) {
-    update(ps => ps.map(p => {
-      if (p.id !== projectId) return p;
-      return { ...p, tasks: p.tasks.map(t => t.id === taskId ? { ...t, ...patch } : t) };
+    _updateAndSave(projectId, p => ({
+      ...p,
+      tasks: p.tasks.map(t => t.id === taskId ? { ...t, ...patch } : t),
     }));
   },
 
   addTask(projectId, task, insertAfterId = null) {
-    update(ps => ps.map(p => {
-      if (p.id !== projectId) return p;
+    _updateAndSave(projectId, p => {
       const tasks = [...p.tasks];
       const idx = insertAfterId != null ? tasks.findIndex(t => t.id === insertAfterId) : -1;
       if (idx !== -1) tasks.splice(idx + 1, 0, task);
       else tasks.push(task);
       return { ...p, tasks, nextTaskId: (p.nextTaskId || 1) + 1 };
-    }));
+    });
   },
 
   deleteTask(projectId, taskId) {
-    update(ps => ps.map(p => {
-      if (p.id !== projectId) return p;
-      return { ...p, tasks: p.tasks.filter(t => t.id !== taskId) };
+    _updateAndSave(projectId, p => ({
+      ...p,
+      tasks: p.tasks.filter(t => t.id !== taskId),
     }));
   },
 
   reorderTasks(projectId, fromIdx, toIdx) {
-    update(ps => ps.map(p => {
-      if (p.id !== projectId) return p;
+    _updateAndSave(projectId, p => {
       const tasks = [...p.tasks];
       const [task] = tasks.splice(fromIdx, 1);
       tasks.splice(toIdx, 0, task);
       return { ...p, tasks };
-    }));
+    });
   },
 
   updateLegendItem(projectId, section, idx, patch) {
-    update(ps => ps.map(p => {
-      if (p.id !== projectId) return p;
+    _updateAndSave(projectId, p => {
       const items = (p.legend[section] ?? []).map((item, i) =>
         i === idx ? { ...item, ...patch } : item
       );
       return { ...p, legend: { ...p.legend, [section]: items } };
-    }));
+    });
   },
 
   updateLegendSection(projectId, section, items) {
-    update(ps => ps.map(p => {
-      if (p.id !== projectId) return p;
+    _updateAndSave(projectId, p => {
       let tasks = p.tasks;
       if (section === 'milestones') {
         tasks = p.tasks.map(t => {
@@ -75,6 +134,6 @@ export const projectStore = {
         });
       }
       return { ...p, legend: { ...p.legend, [section]: items }, tasks };
-    }));
+    });
   },
 };

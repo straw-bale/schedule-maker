@@ -34,7 +34,7 @@
         spacer = document.createElement('div');
         spacer.className = 't-drop-spacer';
 
-        rowEl.classList.add('dragging');
+        rowEl.style.display = 'none';
         rowEl.after(spacer);
         dragActivated = true;
       }
@@ -72,7 +72,7 @@
         if (!dragActivated) return;
         ghost.remove();
         spacer.remove();
-        rowEl.classList.remove('dragging');
+        rowEl.style.display = '';
         const allRows = [...list.querySelectorAll('.t-row')];
         const taskIdx = allRows.indexOf(rowEl);
         if (insertAt !== taskIdx) onReorder(taskIdx, insertAt);
@@ -236,5 +236,11 @@
     border-bottom: 1px solid var(--lgray);
     pointer-events: none;
     flex-shrink: 0;
+  }
+
+  @media print {
+    .task-col    { position: relative; }
+    .col-hdr-lbl { position: relative; }
+    .t-row-actions { display: none !important; }
   }
 </style>

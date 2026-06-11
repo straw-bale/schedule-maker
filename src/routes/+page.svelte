@@ -24,15 +24,16 @@
       type: 'Small',
       name: 'Renovation / TI',
       desc: 'SD through construction for smaller scopes. Standard client review, single CD submission.',
-      meta: '~11 months · 10 tasks',
+      meta: '~12 months · 11 tasks',
       bars: [
-        { l:0,  w:14, c:'#8B9A3A' },  // SD
-        { l:14, w:14, c:'#6B7A2A' },  // DD
-        { l:28, w:7,  c:'#90D5F1' },  // DD Review
-        { l:35, w:14, c:'#3D5018' },  // CDs
-        { l:49, w:7,  c:'#90D5F1' },  // CD Review
-        { l:56, w:9,  c:'#282829' },  // Bidding
-        { l:65, w:28, c:'#3B8FA0' },  // Construction
+        { l:0,  w:7,  c:'#9E9068' },  // Programming
+        { l:7,  w:13, c:'#8B9A3A' },  // SD
+        { l:20, w:13, c:'#6B7A2A' },  // DD
+        { l:33, w:7,  c:'#90D5F1' },  // DD Review
+        { l:40, w:13, c:'#3D5018' },  // CDs
+        { l:53, w:7,  c:'#90D5F1' },  // CD Review
+        { l:60, w:9,  c:'#282829' },  // Bidding
+        { l:69, w:24, c:'#3B8FA0' },  // Construction
         { l:93, w:7,  c:'#282829' },  // Closeout
       ],
     },
@@ -41,19 +42,20 @@
       type: 'Medium',
       name: 'Commercial / Institutional',
       desc: 'Full AE phase sequence — SD, 50%, 95%, 100%, CDs — with client review cycles at each milestone.',
-      meta: '~22 months · 13 tasks',
+      meta: '~23 months · 14 tasks',
       bars: [
-        { l:0,  w:9,  c:'#8B9A3A' },
-        { l:9,  w:5,  c:'#90D5F1' },
-        { l:14, w:12, c:'#8B9A3A' },
-        { l:26, w:5,  c:'#90D5F1' },
-        { l:31, w:9,  c:'#6B7A2A' },
-        { l:40, w:5,  c:'#90D5F1' },
-        { l:45, w:7,  c:'#3D5018' },
-        { l:52, w:5,  c:'#282829' },
-        { l:57, w:5,  c:'#282829' },
-        { l:62, w:30, c:'#3B8FA0' },
-        { l:92, w:7,  c:'#282829' },
+        { l:0,  w:5,  c:'#9E9068' },  // Programming
+        { l:5,  w:9,  c:'#8B9A3A' },  // SD
+        { l:14, w:5,  c:'#90D5F1' },  // SD Review
+        { l:19, w:11, c:'#8B9A3A' },  // 50% DD
+        { l:30, w:5,  c:'#90D5F1' },  // 50% Review
+        { l:35, w:9,  c:'#6B7A2A' },  // 95% CDs
+        { l:44, w:5,  c:'#90D5F1' },  // 95% Review
+        { l:49, w:7,  c:'#3D5018' },  // 100% CDs
+        { l:56, w:5,  c:'#282829' },  // Final CDs
+        { l:61, w:5,  c:'#282829' },  // Bidding
+        { l:66, w:27, c:'#3B8FA0' },  // Construction
+        { l:93, w:7,  c:'#282829' },  // Closeout
       ],
     },
     {
@@ -61,20 +63,21 @@
       type: 'Large',
       name: 'Large / Complex',
       desc: 'Extended owner review cycles at each submission, permitting phase, and major construction period.',
-      meta: '~34 months · 17 tasks',
+      meta: '~36 months · 18 tasks',
       bars: [
-        { l:0,  w:7,  c:'#8B9A3A' },
-        { l:7,  w:4,  c:'#90D5F1' },
-        { l:11, w:8,  c:'#8B9A3A' },
-        { l:19, w:4,  c:'#90D5F1' },
-        { l:23, w:7,  c:'#6B7A2A' },
-        { l:30, w:4,  c:'#90D5F1' },
-        { l:34, w:5,  c:'#3D5018' },
-        { l:39, w:4,  c:'#90D5F1' },
-        { l:43, w:4,  c:'#282829' },
-        { l:47, w:7,  c:'#A0522D' },
-        { l:54, w:39, c:'#3B8FA0' },
-        { l:93, w:5,  c:'#282829' },
+        { l:0,  w:4,  c:'#9E9068' },  // Programming
+        { l:4,  w:7,  c:'#8B9A3A' },  // SD
+        { l:11, w:4,  c:'#90D5F1' },  // SD Review
+        { l:15, w:8,  c:'#8B9A3A' },  // 50% DD
+        { l:23, w:4,  c:'#90D5F1' },  // 50% Review
+        { l:27, w:7,  c:'#6B7A2A' },  // 95% CDs
+        { l:34, w:4,  c:'#90D5F1' },  // 95% Review
+        { l:38, w:5,  c:'#3D5018' },  // 100% CDs
+        { l:43, w:4,  c:'#90D5F1' },  // 100% Review
+        { l:47, w:4,  c:'#282829' },  // Final CDs
+        { l:51, w:7,  c:'#A0522D' },  // Permit
+        { l:58, w:35, c:'#3B8FA0' },  // Construction
+        { l:93, w:5,  c:'#282829' },  // Closeout
       ],
     },
   ];

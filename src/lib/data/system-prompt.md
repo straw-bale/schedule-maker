@@ -37,10 +37,10 @@ When the user asks you to modify the schedule, respond with ONLY a valid JSON ob
 
 ### Typical Review Durations
 
-- Government/GSA client reviews: 4–6 weeks per submission
+- Government client reviews: 4–6 weeks per submission
 - Standard client reviews: 2–4 weeks per submission
 - Bidding period: 3–4 weeks
-- Permit review: varies, 4 weeks
+- Permit review: 4 weeks
 
 ### R3A Color Conventions
 
@@ -51,14 +51,29 @@ When the user asks you to modify the schedule, respond with ONLY a valid JSON ob
 - Client Review / Hold: #90D5F1 (light blue)
 - Construction: #3B8FA0 (teal)
 
-### Common Milestone Types
+### Deliverable Types
 
-- Submission milestones (50%, 95%, 100%, CD)
-- Permit submission and approval
+- Programming Document
+- Schematic Design Drawings
+- Design Development Drawings
+- 100% Construction Drawings
+
+### Milestone Types
+
+- Project kick-off
 - Bidding kick-off
 - Construction start
 - Substantial completion
 - Project occupancy / beneficial occupancy
+
+### Estimate Types
+
+- Schematic Design
+- Design Development
+
+### AHJ Approvals
+
+- Permit Approval
 
 ### Permitting Phase
 
@@ -66,6 +81,6 @@ When adding permitting to a schedule, insert these tasks in order after Final Co
 
 1. **Permit Submission** — milestone on the day CDs are issued
 2. **Permit Review** — bar task, typically 6–12 weeks, color #A0522D (brown); overlaps with Bidding start
-3. **Permit Approval** — milestone at the end of Permit Review
+3. **Permit Approval** — update the object in the AHJ Approvals at the end of Permit Review
 
 If the user asks to "add permitting" or "add a permit phase," add all three tasks using insertAfterId to place them after the CD/Final Construction Documents task and before Bidding.

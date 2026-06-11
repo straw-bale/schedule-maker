@@ -5,7 +5,9 @@
   import GanttPanel   from '$lib/components/GanttPanel.svelte';
   import LegendFooter from '$lib/components/LegendFooter.svelte';
   import AiSidebar    from '$lib/components/AiSidebar.svelte';
+  import PrintPanel   from '$lib/components/PrintPanel.svelte';
   import { goto } from '$app/navigation';
+  import { tick } from 'svelte';
 
   let { data } = $props();
 
@@ -45,51 +47,211 @@
     return clientX >= r.left + TASK_COL_W && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
   }
 
-  function startMilestoneDrag(ms) {
-    draggingLegendMs = ms;
-
-    const ghost = document.createElement('div');
-    ghost.style.cssText = `
-      position:fixed; z-index:9999; pointer-events:none;
-      display:flex; align-items:center; gap:6px;
-      background:#fff; border:1px solid #ddd; border-radius:4px;
-      padding:5px 10px; box-shadow:0 4px 14px rgba(0,0,0,.18);
-      font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:600;
-      transform:translate(-50%,-50%);
-    `;
-    const dot = document.createElement('div');
-    dot.style.cssText = `width:12px;height:12px;border-radius:50%;background:${ms.color};flex-shrink:0;`;
-    ghost.appendChild(dot);
-    ghost.appendChild(document.createTextNode(ms.text || ms.code));
+  // Shared drag engine: hold-and-drag OR click-to-attach (click again to drop).
+  // If the mouse moves before release it's a standard drag; a quick click switches to
+  // sticky mode where the ghost follows the cursor until the next click or Escape.
+  function startLegendDrag(ghost, initX, initY, onDrop) {
+    let moved = false;
+    ghost.style.left = initX + 'px';
+    ghost.style.top  = initY + 'px';
     document.body.appendChild(ghost);
 
     function onMove(e) {
       ghost.style.left = e.clientX + 'px';
       ghost.style.top  = e.clientY + 'px';
       dropDate = isOverGantt(e.clientX, e.clientY) ? xToDate(e.clientX) : null;
+      moved = true;
+    }
+
+    function cleanup() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+      document.removeEventListener('mousedown', onStickyDrop);
+      document.removeEventListener('keydown',   onKey);
+      ghost.remove();
+      dropDate         = null;
+      draggingLegendMs = null;
     }
 
     function onUp(e) {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      ghost.remove();
-
-      if (isOverGantt(e.clientX, e.clientY) && dropDate && project) {
-        const newTask = {
-          id:    Date.now(),
-          name:  draggingLegendMs.text || draggingLegendMs.code,
-          type:  'milestone',
-          date:  dropDate,
-          msRef: { code: draggingLegendMs.code, color: draggingLegendMs.color },
-        };
-        projectStore.addTask(data.id, newTask);
+      if (moved) {
+        // Hold-and-drag completed — drop where released.
+        const date = dropDate;
+        cleanup();
+        if (isOverGantt(e.clientX, e.clientY) && date && project) onDrop(date);
+      } else {
+        // Quick click — switch to sticky mode; next mousedown drops.
+        document.removeEventListener('mouseup', onUp);
+        requestAnimationFrame(() => {
+          document.addEventListener('mousedown', onStickyDrop);
+          document.addEventListener('keydown',   onKey);
+        });
       }
-      draggingLegendMs = null;
-      dropDate = null;
+    }
+
+    function onStickyDrop(e) {
+      const date = dropDate;
+      cleanup();
+      if (isOverGantt(e.clientX, e.clientY) && date && project) onDrop(date);
+    }
+
+    function onKey(e) {
+      if (e.key === 'Escape') cleanup();
     }
 
     document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('mouseup',   onUp);
+  }
+
+  const GHOST_CSS = `
+    position:fixed; z-index:9999; pointer-events:none;
+    display:flex; align-items:center; gap:6px;
+    background:#fff; border:1px solid #ddd; border-radius:4px;
+    padding:5px 10px; box-shadow:0 4px 14px rgba(0,0,0,.18);
+    font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:600;
+    transform:translate(-50%,-50%);
+  `;
+
+  // Sticky-only drag for "+ Add" buttons: ghost immediately follows cursor,
+  // next click places it (on Gantt for date-positioned items). Escape cancels.
+  // Uses 'click' (not 'mousedown') as the drop trigger so it never catches
+  // the same click that launched the drag. For items with no Gantt position,
+  // pass anyDrop: true.
+  function startStickyDrag(ghost, x, y, onDrop, { anyDrop = false } = {}) {
+    ghost.style.left = x + 'px';
+    ghost.style.top  = y + 'px';
+    document.body.appendChild(ghost);
+
+    function onMove(e) {
+      ghost.style.left = e.clientX + 'px';
+      ghost.style.top  = e.clientY + 'px';
+      if (!anyDrop) dropDate = isOverGantt(e.clientX, e.clientY) ? xToDate(e.clientX) : null;
+    }
+    function cleanup() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('click',     onClick);
+      document.removeEventListener('keydown',   onKey);
+      ghost.remove();
+      dropDate         = null;
+      draggingLegendMs = null;
+    }
+    function onClick(e) {
+      const date = dropDate;
+      cleanup();
+      if (anyDrop || (isOverGantt(e.clientX, e.clientY) && date && project)) onDrop(date);
+    }
+    function onKey(e) { if (e.key === 'Escape') cleanup(); }
+
+    document.addEventListener('mousemove', onMove);
+    // RAF ensures this listener is added after the launching click has fully propagated.
+    requestAnimationFrame(() => {
+      document.addEventListener('click',   onClick);
+      document.addEventListener('keydown', onKey);
+    });
+  }
+
+  function makeMilestoneGhost(ms) {
+    const g = document.createElement('div');
+    g.style.cssText = GHOST_CSS;
+    const dot = document.createElement('div');
+    dot.style.cssText = `width:12px;height:12px;border-radius:50%;background:${ms.color};flex-shrink:0;`;
+    g.appendChild(dot);
+    g.appendChild(document.createTextNode(ms.text || ms.code));
+    return g;
+  }
+
+  function makeDeliverableGhost(n) {
+    const g = document.createElement('div');
+    g.style.cssText = GHOST_CSS;
+    const badge = document.createElement('div');
+    badge.style.cssText = `width:18px;height:18px;border-radius:50%;background:#D4804A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;`;
+    badge.textContent = String(n);
+    g.appendChild(badge);
+    g.appendChild(document.createTextNode('New Deliverable'));
+    return g;
+  }
+
+  function makeApprovalGhost(a) {
+    const g = document.createElement('div');
+    g.style.cssText = GHOST_CSS;
+    const diamond = document.createElement('div');
+    diamond.style.cssText = `width:10px;height:10px;background:#3B8FA0;transform:rotate(45deg);flex-shrink:0;`;
+    g.appendChild(diamond);
+    g.appendChild(document.createTextNode(a.text || 'New Approval'));
+    return g;
+  }
+
+  function makeEstimateGhost(est) {
+    const g = document.createElement('div');
+    g.style.cssText = GHOST_CSS;
+    const swatch = document.createElement('div');
+    swatch.style.cssText = `width:12px;height:12px;border-radius:2px;background:${est.color};flex-shrink:0;`;
+    g.appendChild(swatch);
+    g.appendChild(document.createTextNode(est.text));
+    return g;
+  }
+
+  // Reposition an existing legend milestone by dragging its footer pill.
+  function startMilestoneDrag(ms) {
+    draggingLegendMs = ms;
+    startLegendDrag(makeMilestoneGhost(ms), 0, 0, (date) => {
+      const idx = project.legend.milestones.findIndex(m => m.code === ms.code);
+      if (idx >= 0) projectStore.updateLegendItem(data.id, 'milestones', idx, { date });
+    });
+  }
+
+  function startApprovalDrag(a) {
+    startLegendDrag(makeApprovalGhost(a), 0, 0, (date) => {
+      const idx = project.legend.approvals.findIndex(ap => ap.text === a.text);
+      if (idx >= 0) projectStore.updateLegendItem(data.id, 'approvals', idx, { date });
+    });
+  }
+
+  function handleAddMilestone(e) {
+    if (!project) return;
+    const n  = (project.legend.milestones?.length ?? 0) + 1;
+    const ms = { code: `M${n}`, text: 'New Milestone', color: '#888888' };
+    draggingLegendMs = ms;
+    startStickyDrag(makeMilestoneGhost(ms), e.clientX, e.clientY, (date) => {
+      projectStore.updateLegendSection(data.id, 'milestones', [
+        ...(project.legend.milestones ?? []),
+        { ...ms, date },
+      ]);
+    });
+  }
+
+  function handleAddDeliverable(e) {
+    if (!project) return;
+    const n = (project.legend.deliverables?.length ?? 0) + 1;
+    startStickyDrag(makeDeliverableGhost(n), e.clientX, e.clientY, (date) => {
+      projectStore.updateLegendSection(data.id, 'deliverables', [
+        ...(project.legend.deliverables ?? []),
+        { text: 'New Deliverable', label: '', date },
+      ]);
+    });
+  }
+
+  function handleAddApproval(e) {
+    if (!project) return;
+    const a = { text: 'New Approval' };
+    startStickyDrag(makeApprovalGhost(a), e.clientX, e.clientY, (date) => {
+      projectStore.updateLegendSection(data.id, 'approvals', [
+        ...(project.legend.approvals ?? []),
+        { ...a, date },
+      ]);
+    });
+  }
+
+  function handleAddEstimate(e) {
+    if (!project) return;
+    const n   = (project.legend.estimates?.length ?? 0) + 1;
+    const est = { code: `E${n}`, text: 'New Estimate', color: '#8B9A3A' };
+    startStickyDrag(makeEstimateGhost(est), e.clientX, e.clientY, () => {
+      projectStore.updateLegendSection(data.id, 'estimates', [
+        ...(project.legend.estimates ?? []),
+        est,
+      ]);
+    }, { anyDrop: true });
   }
 
   function linkToGantt(msCode) {
@@ -134,6 +296,12 @@
   function updateMeta(field, val) {
     projectStore.updateMeta(data.id, { meta: { ...project.meta, [field]: val } });
   }
+  let titleEl    = $state(null);
+  let subtitleEl = $state(null);
+  // Only push store value to DOM when element isn't focused — prevents double-render on blur.
+  $effect(() => { if (titleEl    && document.activeElement !== titleEl)    titleEl.textContent    = project?.title    ?? ''; });
+  $effect(() => { if (subtitleEl && document.activeElement !== subtitleEl) subtitleEl.textContent = project?.subtitle ?? ''; });
+
   function updateTitle(val) {
     projectStore.updateMeta(data.id, { title: val });
   }
@@ -154,8 +322,10 @@
   let draggingTaskId = $state(null);
   function handleDraggingChange(id) { draggingTaskId = id; }
 
-  let zoom          = $state('month');
-  let showTodayLine = $state(true);
+  let zoom           = $state('month');
+  let showTodayLine  = $state(true);
+  let printPanelOpen = $state(false);
+  let hideLegendPrint = $state(false);
 
   // Timeline range controls
   function adjustView(startDelta, endDelta) {
@@ -191,7 +361,45 @@
     }
   }
 
-  function printSchedule() { window.print(); }
+  function openPrintPanel() {
+    if (project) sessionStorage.setItem('r3a_preview', JSON.stringify(project));
+    printPanelOpen = true;
+  }
+
+  async function printSchedule({ showToday = true, showLegend = true, paper = 'letter' } = {}) {
+    printPanelOpen  = false;
+    const prevZoom  = zoom;
+    const prevToday = showTodayLine;
+    const prevAi    = aiOpen;
+
+    zoom          = 'month';
+    showTodayLine = showToday;
+    hideLegendPrint = !showLegend;
+    aiOpen        = false;
+    await tick();
+
+    const paperUsableW = paper === 'tabloid' ? 1555 : 979;
+    const contentW     = TASK_COL_W + ganttMonths.length * COL_W;
+    const scale        = Math.min(1, paperUsableW / contentW);
+    document.documentElement.style.setProperty('--print-scale', scale.toFixed(4));
+
+    // Inject dynamic @page rule for the selected paper size
+    const pageStyle = document.createElement('style');
+    pageStyle.id    = '__r3a_page';
+    const paperName = paper === 'tabloid' ? 'tabloid' : 'letter';
+    pageStyle.textContent = `@page { size: ${paperName} landscape; margin: 0.4in; }`;
+    document.head.appendChild(pageStyle);
+
+    window.print();
+
+    document.getElementById('__r3a_page')?.remove();
+
+    document.documentElement.style.removeProperty('--print-scale');
+    zoom            = prevZoom;
+    showTodayLine   = prevToday;
+    hideLegendPrint = false;
+    aiOpen          = prevAi;
+  }
 </script>
 
 {#if !project}
@@ -208,19 +416,21 @@
         <a class="back-btn no-print" href="/" onclick={(e) => { e.preventDefault(); goto('/'); }}>← Projects</a>
         <div class="hdr-titles">
           <div
+            bind:this={titleEl}
             class="hdr-title"
             contenteditable="true"
             spellcheck="false"
             onblur={(e) => updateTitle(e.target.textContent.trim() || project.title)}
             onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }}
-          >{project.title}</div>
+          ></div>
           <div
+            bind:this={subtitleEl}
             class="hdr-sub"
             contenteditable="true"
             spellcheck="false"
             onblur={(e) => updateSubtitle(e.target.textContent.trim() || project.subtitle)}
-            onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }}
-          >{project.subtitle}</div>
+            onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(), e.target.blur(); } }}
+          ></div>
         </div>
       </div>
 
@@ -252,7 +462,7 @@
       </div>
 
       <div class="hdr-actions no-print">
-        <button class="action-btn" onclick={printSchedule} title="Print / Export PDF">
+        <button class="action-btn" onclick={openPrintPanel} title="Print / Export PDF">
           Print
         </button>
         <button class="action-btn action-btn-ai" onclick={() => aiOpen = !aiOpen} title="AI Schedule Assistant">
@@ -321,7 +531,7 @@
               tasks={project.tasks}
               viewStart={project.viewStart}
               viewEnd={project.viewEnd}
-              todayMark={project.todayMark}
+              todayMark={toISO(new Date())}
               legend={project.legend}
               dropDate={dropDate}
               highlightTaskId={highlightTaskId}
@@ -336,19 +546,36 @@
         </div>
       </div>
 
-      <LegendFooter
-        legend={project.legend}
-        tasks={project.tasks}
-        onUpdate={handleLegendUpdate}
-        onMilestoneDrag={startMilestoneDrag}
-        onLinkClick={linkToGantt}
-      />
+      <div class:no-print={hideLegendPrint}>
+        <LegendFooter
+          legend={project.legend}
+          tasks={project.tasks}
+          onUpdate={handleLegendUpdate}
+          onMilestoneDrag={startMilestoneDrag}
+          onApprovalDrag={startApprovalDrag}
+          onAddMilestone={handleAddMilestone}
+          onAddDeliverable={handleAddDeliverable}
+          onAddApproval={handleAddApproval}
+          onAddEstimate={handleAddEstimate}
+          onLinkClick={linkToGantt}
+        />
+      </div>
     </div>
 
     <!-- R3A wordmark (print only) -->
     <div class="r3a-mark no-screen">R3A</div>
 
     <AiSidebar open={aiOpen} project={project} onApplyChanges={handleAiChanges} onClose={() => aiOpen = false} />
+
+    <PrintPanel
+      open={printPanelOpen}
+      projectId={data.id}
+      contentWidth={TASK_COL_W + ganttWidth}
+      monthCount={ganttMonths.length}
+      showTodayDefault={showTodayLine}
+      onPrint={printSchedule}
+      onClose={() => printPanelOpen = false}
+    />
 
   </div>
 {/if}
@@ -416,7 +643,8 @@
     cursor: text;
     line-height: 1.1;
   }
-  .hdr-title:focus { background: rgba(32,171,226,.06); border-radius: 2px; padding: 0 4px; }
+  .hdr-title:focus { background: rgba(255,210,0,.25); border-radius: 2px; padding: 0 4px; }
+  .hdr-title:empty::before { content: 'Project Title'; color: #ccc; pointer-events: none; }
   .hdr-sub {
     font-family: 'Barlow Condensed', sans-serif;
     font-weight: 400;
@@ -629,12 +857,37 @@
   }
 
   @media print {
-    .no-print { display: none !important; }
-    .schedule-page { padding-right: 0 !important; height: auto; overflow: visible; }
-    .sch-hdr { border-bottom-width: 1.5px; }
+    @page { size: letter landscape; margin: 0.4in; }
+    :root { zoom: var(--print-scale, 1); }
+
+    .no-print     { display: none !important; }
+    .no-print-border { border-bottom-width: 1.5px !important; }
+
+    .schedule-page {
+      padding-right: 0 !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    .sch-hdr {
+      padding: 8px 14px 6px;
+    }
     .hdr-title { font-size: 20px; }
-    .sch-body { overflow: visible; }
-    .sch-main { overflow: visible; }
-    .r3a-mark { display: block; }
+
+    .sch-body  { overflow: visible !important; height: auto !important; flex: none !important; }
+    .sch-main  { overflow: visible !important; height: auto !important; flex: none !important; }
+    .sch-scroll {
+      overflow: visible !important;
+      width: auto !important;
+      height: auto !important;
+    }
+    .sch-inner { min-height: unset !important; }
+
+    .r3a-mark {
+      display: block !important;
+      position: static !important;
+      text-align: right;
+      padding: 4px 0 0;
+      font-size: 16px;
+    }
   }
 </style>

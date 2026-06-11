@@ -1,6 +1,12 @@
 <script>
   import '../app.css';
+  import { onMount } from 'svelte';
+  import { projectStore } from '$lib/stores/projects.js';
+  import FeedbackWidget from '$lib/components/FeedbackWidget.svelte';
+
   let { children } = $props();
+
+  onMount(() => { projectStore.init(); });
 </script>
 
 <svelte:head>
@@ -12,3 +18,4 @@
 </svelte:head>
 
 {@render children()}
+<FeedbackWidget />

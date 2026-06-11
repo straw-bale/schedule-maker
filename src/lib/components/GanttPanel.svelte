@@ -252,6 +252,20 @@
             {/if}
           {/if}
         {/each}
+        {#each (legend?.approvals ?? []) as a, i}
+          {#if a.date}
+            {@const apx = px(a.date)}
+            {#if apx >= -30 && apx <= ganttWidth + 30}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="ov-approval"
+                style:left="{apx}px"
+                onmousedown={(e) => startOverlayDrag(e, 'approvals', i, a.date)}
+                title="{a.text} — drag to reposition"
+              ></div>
+            {/if}
+          {/if}
+        {/each}
       </div>
 
     </div>
@@ -296,6 +310,15 @@
             {@const dpx = px(date)}
             {#if dpx >= 0 && dpx <= ganttWidth}
               <div class="ov-line ov-del-line" style:left="{dpx}px" style:height="{totalH}px"></div>
+            {/if}
+          {/if}
+        {/each}
+        {#each (legend?.approvals ?? []) as a, i}
+          {@const date = overlayDate('approvals', i, a)}
+          {#if date}
+            {@const apx = px(date)}
+            {#if apx >= 0 && apx <= ganttWidth}
+              <div class="ov-line ov-appr-line" style:left="{apx}px" style:height="{totalH}px"></div>
             {/if}
           {/if}
         {/each}
@@ -434,6 +457,21 @@
   .ov-pill:hover { box-shadow: 0 2px 8px rgba(0,0,0,.28); }
   .ov-pill:active { cursor: grabbing; }
   .ov-del { background: #D4804A; color: #fff; }
+  .ov-approval {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%) rotate(45deg);
+    width: 10px; height: 10px;
+    background: var(--blue);
+    cursor: grab;
+    user-select: none;
+    z-index: 20;
+    box-shadow: 0 1px 4px rgba(0,0,0,.2);
+    transition: box-shadow .1s;
+  }
+  .ov-approval:hover { box-shadow: 0 2px 8px rgba(0,0,0,.28); }
+  .ov-approval:active { cursor: grabbing; }
+  .ov-appr-line { border-color: var(--blue); }
 
   /* Gantt body */
   .gantt-body { position: relative; }
@@ -547,4 +585,10 @@
     padding: 5px 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; outline: none;
   }
   .dp input[type="date"]:focus { border-color: var(--blue); }
+
+  @media print {
+    .time-hdr    { position: relative; }
+    .dp          { display: none !important; }
+    .gantt-inner { min-height: unset !important; }
+  }
 </style>

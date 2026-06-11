@@ -1,12 +1,5 @@
 <script>
-  let { legend, tasks = [], onUpdate, onMilestoneDrag, onLinkClick } = $props();
-
-  function delLinkedTasks(num) {
-    return tasks.filter(t => t.delRef === num).map(t => t.name);
-  }
-  function msLinkedTasks(code) {
-    return tasks.filter(t => t.msRef?.code === code).map(t => t.name);
-  }
+  let { legend, tasks = [], onUpdate, onMilestoneDrag, onApprovalDrag, onAddMilestone, onAddDeliverable, onAddApproval, onAddEstimate, onLinkClick } = $props();
 
   function emit(section, items) {
     onUpdate(section, items);
@@ -18,20 +11,6 @@
 
   function removeItem(section, idx) {
     emit(section, legend[section].filter((_, i) => i !== idx));
-  }
-
-  function addDeliverable() {
-    const next = (legend.deliverables.length + 1);
-    emit('deliverables', [...legend.deliverables, { num: next, text: 'New Deliverable', label: '', date: null }]);
-  }
-  function addMilestone() {
-    emit('milestones', [...legend.milestones, { code: 'MS', text: 'New Milestone', color: '#20ABE2', date: null }]);
-  }
-  function addEstimate() {
-    emit('estimates', [...legend.estimates, { code: 'ES', text: 'New Estimate', color: '#8B9A3A' }]);
-  }
-  function addApproval() {
-    emit('approvals', [...legend.approvals, { text: 'New Approval' }]);
   }
 
   function onText(e, section, idx, field) {
@@ -53,15 +32,7 @@
     <div class="leg-items">
       {#each legend.deliverables as d, i}
         {@const num = i + 1}
-        {@const linked = delLinkedTasks(num)}
-        {@const ok = linked.length > 0}
-        <div class="leg-row" class:row-warn={!ok}>
-          <div
-            class="status-dot"
-            class:status-ok={ok}
-            class:status-warn={!ok}
-            title={ok ? `On schedule: ${linked.join(', ')}` : 'Not found on schedule'}
-          ></div>
+        <div class="leg-row">
           <div class="leg-bdg" style:background="#D4804A">{num}</div>
           <div class="leg-body">
             <div class="leg-line">
@@ -94,7 +65,9 @@
           <button class="leg-del" onclick={() => removeItem('deliverables', i)}>✕</button>
         </div>
       {/each}
-      <button class="leg-add" onclick={addDeliverable}>+ Add</button>
+      <button type="button" class="leg-add"
+        onclick={(e) => onAddDeliverable?.(e)}
+        title="Click to add, then click on schedule to place">+ Add</button>
     </div>
   </div>
 
@@ -103,34 +76,16 @@
     <div class="leg-hdr">Milestones</div>
     <div class="leg-items">
       {#each legend.milestones as m, i}
-        {@const linked = msLinkedTasks(m.code)}
-        {@const ok = linked.length > 0}
-        <div class="leg-row" class:row-warn={!ok}>
+        <div class="leg-row">
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
-            class="status-dot"
-            class:status-ok={ok}
-            class:status-warn={!ok}
-            title={ok ? `On schedule: ${linked.join(', ')}` : 'Not found on schedule'}
-            onclick={() => ok && onLinkClick?.(m.code)}
-            style:cursor={ok ? 'pointer' : 'help'}
-          ></div>
-          <label
-            class="color-swatch drag-handle"
+            class="ms-pill"
             style:background={m.color}
-            title="Drag to schedule · click to change color"
+            title="Drag to schedule"
             onmousedown={(e) => { if (e.button === 0) { e.preventDefault(); onMilestoneDrag?.(m); } }}
-          >
-            <input type="color" value={m.color} oninput={(e) => onColor(e, 'milestones', i)}>
-          </label>
+          >{m.code}</div>
           <div class="leg-body">
             <div class="leg-line">
-              <span
-                class="leg-field leg-code"
-                contenteditable="true"
-                spellcheck="false"
-                onblur={(e) => onText(e, 'milestones', i, 'code')}
-                onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), e.target.blur())}
-              >{m.code}</span>
               <span
                 class="leg-field leg-name"
                 contenteditable="true"
@@ -152,7 +107,9 @@
           <button class="leg-del" onclick={() => removeItem('milestones', i)}>✕</button>
         </div>
       {/each}
-      <button class="leg-add" onclick={addMilestone}>+ Add</button>
+      <button type="button" class="leg-add"
+        onclick={(e) => onAddMilestone?.(e)}
+        title="Click to add, then click on schedule to place">+ Add</button>
     </div>
   </div>
 
@@ -186,28 +143,50 @@
           <button class="leg-del" onclick={() => removeItem('estimates', i)}>✕</button>
         </div>
       {/each}
-      <button class="leg-add" onclick={addEstimate}>+ Add</button>
+      <button type="button" class="leg-add"
+        onclick={(e) => onAddEstimate?.(e)}
+        title="Click to add">+ Add</button>
     </div>
   </div>
 
-  <!-- City Approvals -->
+  <!-- AHJ Approvals -->
   <div class="leg-col">
-    <div class="leg-hdr">City Approvals</div>
+    <div class="leg-hdr">AHJ Approvals</div>
     <div class="leg-items">
       {#each legend.approvals as a, i}
         <div class="leg-row">
-          <div class="leg-diamond"></div>
-          <span
-            class="leg-field leg-name"
-            contenteditable="true"
-            spellcheck="false"
-            onblur={(e) => onText(e, 'approvals', i, 'text')}
-            onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), e.target.blur())}
-          >{a.text}</span>
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="leg-diamond"
+            title="Drag to schedule"
+            onmousedown={(e) => { if (e.button === 0) { e.preventDefault(); onApprovalDrag?.(a); } }}
+          ></div>
+          <div class="leg-body">
+            <div class="leg-line">
+              <span
+                class="leg-field leg-name"
+                contenteditable="true"
+                spellcheck="false"
+                onblur={(e) => onText(e, 'approvals', i, 'text')}
+                onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), e.target.blur())}
+              >{a.text}</span>
+            </div>
+            <div class="leg-sub">
+              <span class="sub-lbl">Date:</span>
+              <input
+                type="date"
+                class="date-inp"
+                value={a.date ?? ''}
+                onchange={(e) => onDate(e, 'approvals', i)}
+              >
+            </div>
+          </div>
           <button class="leg-del" onclick={() => removeItem('approvals', i)}>✕</button>
         </div>
       {/each}
-      <button class="leg-add" onclick={addApproval}>+ Add</button>
+      <button type="button" class="leg-add"
+        onclick={(e) => onAddApproval?.(e)}
+        title="Click to add, then click on schedule to place">+ Add</button>
     </div>
   </div>
 
@@ -265,20 +244,6 @@
     transition: background .15s;
   }
   .leg-row:hover .leg-del { opacity: 1; }
-  .row-warn { background: rgba(232,160,32,.08); }
-
-  /* Status dot */
-  .status-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    margin-top: 4px;
-    cursor: help;
-    transition: background .2s;
-  }
-  .status-ok   { background: var(--lime); }
-  .status-warn { background: #E8A020; }
-
   .leg-bdg {
     width: 18px; height: 18px;
     border-radius: 50%;
@@ -297,8 +262,27 @@
     background: var(--blue);
     transform: rotate(45deg);
     flex-shrink: 0;
-    margin: 4px 2px 0;
+    margin: 4px 4px 0;
+    cursor: grab;
+    user-select: none;
   }
+  .leg-diamond:active { cursor: grabbing; }
+
+  .ms-pill {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    color: #fff;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 2px;
+    cursor: grab;
+    user-select: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,.2);
+  }
+  .ms-pill:active { cursor: grabbing; }
 
   /* Color swatch */
   .color-swatch {
@@ -423,16 +407,20 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: .07em;
-    cursor: pointer;
+    cursor: grab;
     padding: 4px 0 0;
-    opacity: 0;
+    opacity: 0.25;
     transition: opacity .15s;
     display: block;
+    user-select: none;
   }
+  .leg-add:active { cursor: grabbing; }
   .leg-col:hover .leg-add { opacity: 1; }
 
   @media print {
     .leg-del, .leg-add, .date-inp { display: none !important; }
     .leg-field { cursor: default; }
+    .leg-col  { overflow: visible !important; }
+    .leg-items { overflow: visible !important; height: auto !important; }
   }
 </style>
