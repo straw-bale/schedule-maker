@@ -51,6 +51,18 @@ export function isLightColor(hex) {
   return (r * 299 + g * 587 + b * 114) / 1000 > 155;
 }
 
+/** Earliest task start and latest task end across all tasks */
+export function projectDateRange(tasks) {
+  const dates = tasks.flatMap(t =>
+    t.type === 'milestone' ? [t.date] : [t.start, t.end]
+  ).filter(Boolean);
+  if (!dates.length) return { start: null, end: null };
+  return {
+    start: dates.reduce((a, b) => a < b ? a : b),
+    end:   dates.reduce((a, b) => a > b ? a : b),
+  };
+}
+
 /** Compact random ID for project records */
 export function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);

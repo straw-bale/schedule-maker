@@ -1,6 +1,6 @@
 ﻿<script>
   import { projectStore } from '$lib/stores/projects.js';
-  import { generateId, parseDate, toISO, MONTHS_SHORT, monthList, totalDays, ZOOM_COL_W } from '$lib/utils/dates.js';
+  import { generateId, parseDate, toISO, MONTHS_SHORT, monthList, totalDays, ZOOM_COL_W, projectDateRange } from '$lib/utils/dates.js';
   import TaskPanel    from '$lib/components/TaskPanel.svelte';
   import GanttPanel   from '$lib/components/GanttPanel.svelte';
   import LegendFooter from '$lib/components/LegendFooter.svelte';
@@ -26,6 +26,10 @@
   // Gantt geometry for date-from-x computation
   const TASK_COL_W = 252;
   let schW        = $state(0);
+  let trueRange  = $derived(project ? projectDateRange(project.tasks) : { start: null, end: null });
+  let trueStart  = $derived(trueRange.start);
+  let trueEnd    = $derived(trueRange.end);
+
   let ganttMonths = $derived(project ? monthList(parseDate(project.viewStart), parseDate(project.viewEnd)) : []);
   let fitColW     = $derived(ganttMonths.length > 0 ? Math.max(20, Math.floor((schW - TASK_COL_W) / ganttMonths.length)) : 72);
   let printColW   = $state(null); // non-null during print: forces fit-to-paper column width
@@ -384,11 +388,20 @@
   }
 
   let duration = $derived.by(() => {
-    if (!project) return 0;
-    const vs = parseDate(project.viewStart);
-    const ve = parseDate(project.viewEnd);
-    return (ve.getFullYear() - vs.getFullYear()) * 12 + ve.getMonth() - vs.getMonth();
+    if (!trueStart || !trueEnd) return 0;
+    const s = parseDate(trueStart);
+    const e = parseDate(trueEnd);
+    return (e.getFullYear() - s.getFullYear()) * 12 + e.getMonth() - s.getMonth();
   });
+
+  function fitView() {
+    if (!project || !trueStart || !trueEnd) return;
+    const s  = parseDate(trueStart);
+    const e  = parseDate(trueEnd);
+    const vs = new Date(s.getFullYear(), s.getMonth() - 1, 1);
+    const ve = new Date(e.getFullYear(), e.getMonth() + 1, 1);
+    projectStore.updateProject(data.id, { viewStart: toISO(vs), viewEnd: toISO(ve) });
+  }
 
   function handleAiChanges(changes) {
     for (const c of changes) {
@@ -538,13 +551,14 @@
         <span class="tl-lbl">Start</span>
         <div class="tl-ctrl">
           <button class="tl-btn" onclick={() => adjustView(-1, 0)} title="Add one month to the start">←</button>
-          <span class="tl-date">{fmtMonthYear(project.viewStart)}</span>
+          <span class="tl-date">{trueStart ? fmtMonthYear(trueStart) : '—'}</span>
           <button class="tl-btn" onclick={() => adjustView(1, 0)} title="Remove one month from the start">→</button>
         </div>
       </div>
 
       <div class="tl-center">
         <button class="tl-shift" onclick={() => adjustView(-1, -1)} title="Shift entire timeline earlier">◀</button>
+        <button class="tl-fit" onclick={fitView} title="Fit view to task content">Fit</button>
         <span class="tl-dur">{duration} months</span>
         <button class="tl-shift" onclick={() => adjustView(1, 1)} title="Shift entire timeline later">▶</button>
       </div>
@@ -566,7 +580,7 @@
         </div>
         <div class="tl-ctrl">
           <button class="tl-btn" onclick={() => adjustView(0, -1)} title="Remove one month from the end">←</button>
-          <span class="tl-date">{fmtMonthYear(project.viewEnd)}</span>
+          <span class="tl-date">{trueEnd ? fmtMonthYear(trueEnd) : '—'}</span>
           <button class="tl-btn" onclick={() => adjustView(0, 1)} title="Add one month to the end">→</button>
         </div>
         <span class="tl-lbl">End</span>
@@ -860,6 +874,14 @@
     line-height: 1;
   }
   .tl-shift:hover { color: var(--black); }
+  .tl-fit {
+    background: none; border: none; padding: 2px 6px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 9px;
+    text-transform: uppercase; letter-spacing: .08em;
+    color: #ccc; cursor: pointer;
+    transition: color .1s; line-height: 1;
+  }
+  .tl-fit:hover { color: var(--blue); }
 
   /* View options group (zoom + today toggle) */
   .view-opts {
