@@ -88,7 +88,6 @@
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
             class="ms-pill"
-            style:background={m.color}
             title="Drag to schedule"
             onmousedown={(e) => { if (e.button === 0) { e.preventDefault(); onMilestoneDrag?.(m); } }}
           >{m.code}</div>
@@ -325,6 +324,7 @@
     font-family: 'Barlow Condensed', sans-serif;
     font-weight: 700;
     font-size: 9px;
+    background: var(--black);
     color: #fff;
     white-space: nowrap;
     flex-shrink: 0;

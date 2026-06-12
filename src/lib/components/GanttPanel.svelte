@@ -257,8 +257,6 @@
               <div
                 class="ov-pill"
                 style:left="{mpx}px"
-                style:background={m.color}
-                style:color={isLightColor(m.color) ? 'rgba(0,0,0,.65)' : '#fff'}
                 onmousedown={(e) => startOverlayDrag(e, 'milestones', i, m.date)}
                 title="{m.text} — drag to reposition"
               >{m.code}</div>
@@ -544,6 +542,8 @@
     user-select: none;
     z-index: 20;
     transition: box-shadow .1s;
+    background: var(--black);
+    color: #fff;
   }
   .ov-pill:hover { box-shadow: 0 2px 8px rgba(0,0,0,.28); }
   .ov-pill:active { cursor: grabbing; }
@@ -706,7 +706,7 @@
   .dp-swatch.dp-swatch-active { border-color: var(--black); }
 
   @media print {
-    .time-hdr    { position: relative; }
+    .time-hdr    { position: relative; z-index: auto; }
     .dp          { display: none !important; }
     .gantt-inner { min-height: unset !important; }
   }

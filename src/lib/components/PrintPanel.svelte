@@ -17,7 +17,7 @@
   // Preview pane is 440px wide; iframe is the full paper size scaled to fit.
   const PREVIEW_W = 880;
 
-  let paper      = $state('letter');
+  let paper      = $state('tabloid');
   let showToday  = $state(true);
   let showLegend = $state(true);
   let iframeEl   = $state(null);
@@ -26,7 +26,7 @@
     if (open) {
       showToday  = showTodayDefault;
       showLegend = true;
-      paper      = 'letter';
+      paper      = 'tabloid';
     }
   });
 

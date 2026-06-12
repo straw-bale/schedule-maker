@@ -405,7 +405,7 @@
     printPanelOpen = true;
   }
 
-  async function printSchedule({ showToday = true, showLegend = true, paper = 'letter' } = {}) {
+  async function printSchedule({ showToday = true, showLegend = true, paper = 'tabloid' } = {}) {
     printPanelOpen  = false;
     const prevZoom  = zoom;
     const prevToday = showTodayLine;
@@ -418,13 +418,27 @@
     aiOpen        = false;
 
     const paperUsableW = paper === 'tabloid' ? 1555 : 979;
+    const paperUsableH = paper === 'tabloid' ? 979  : 739;
+
+    // Initial column width sized to fill paper width at scale=1
     if (ganttMonths.length > 0) {
       printColW = Math.max(20, Math.round((paperUsableW - TASK_COL_W) / ganttMonths.length));
     }
     await tick();
 
-    const contentW = TASK_COL_W + ganttMonths.length * (printColW ?? ZOOM_COL_W['month'] ?? 72);
-    const scale    = Math.min(1, paperUsableW / contentW);
+    // Measure full content height for vertical fit
+    const hdrH    = document.querySelector('.sch-hdr')?.offsetHeight ?? 64;
+    const legH    = showLegend ? (document.querySelector('.legend-wrap')?.scrollHeight ?? 150) : 0;
+    const contentH = hdrH + 68 + (project?.tasks?.length ?? 0) * 34 + legH;
+    const scaleH   = Math.min(1, paperUsableH / contentH);
+    const scale    = scaleH; // height is always the binding constraint after columns fill width
+
+    // Expand columns to fill the paper width at the final scale (ceil avoids right-edge gap)
+    if (ganttMonths.length > 0) {
+      printColW = Math.max(20, Math.ceil((paperUsableW / scale - TASK_COL_W) / ganttMonths.length));
+    }
+    await tick();
+
     document.documentElement.style.setProperty('--print-scale', scale.toFixed(4));
 
     // Filename: [number]_[YYYYMMDD]_Project Schedule
@@ -433,11 +447,11 @@
     const num      = project?.number?.trim();
     document.title = [num, yyyymmdd, 'Project Schedule'].filter(Boolean).join('_');
 
-    // Inject dynamic @page rule for the selected paper size
+    // margin: 0 on top/bottom suppresses the browser's native URL and date headers
     const pageStyle = document.createElement('style');
     pageStyle.id    = '__r3a_page';
     const paperName = paper === 'tabloid' ? 'tabloid' : 'letter';
-    pageStyle.textContent = `@page { size: ${paperName} landscape; margin: 0.4in; }`;
+    pageStyle.textContent = `@page { size: ${paperName} landscape; margin: 0 0.4in; }`;
     document.head.appendChild(pageStyle);
 
     window.print();
@@ -936,13 +950,15 @@
   }
 
   @media print {
-    @page { size: letter landscape; margin: 0.4in; }
+    @page { size: letter landscape; margin: 0 0.4in; }
     :root { zoom: var(--print-scale, 1); }
 
     .no-print     { display: none !important; }
     .no-print-border { border-bottom-width: 1.5px !important; }
 
     .schedule-page {
+      padding-top: 0.4in !important;
+      padding-bottom: 0.4in !important;
       padding-right: 0 !important;
       height: auto !important;
       overflow: visible !important;
@@ -950,16 +966,16 @@
     .sch-hdr { padding: 8px 14px 6px; }
     .hdr-title { font-size: 20px; }
 
-    /* Content flows naturally; padding reserves space above the fixed footer */
-    .sch-body   { overflow: visible !important; height: auto !important; flex: none !important; padding-bottom: 130px; }
+    .sch-body   { overflow: visible !important; height: auto !important; flex: none !important; padding-bottom: 0; }
     .sch-main   { overflow: visible !important; height: auto !important; flex: none !important; }
-    .sch-scroll { overflow: visible !important; width: auto !important; height: auto !important; }
+    .sch-scroll { overflow: visible !important; width: 100% !important; height: auto !important; }
     .sch-inner  { min-height: unset !important; }
 
-    /* Legend footer pinned to page bottom — never overlaps schedule rows */
     .legend-wrap {
-      position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
+      position: static !important;
       height: auto !important; overflow: visible !important; background: #fff;
+      margin-top: 0 !important;
+      break-inside: avoid;
     }
 
     .r3a-mark {
@@ -967,7 +983,7 @@
       position: static !important;
       text-align: right;
       padding: 4px 0 0;
-      font-size: 16px;
+      font-size: 28px;
     }
   }
 </style>
