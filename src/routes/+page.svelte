@@ -120,6 +120,7 @@
     <div class="top-bar">
       <h2 class="section-hdr">Projects</h2>
       <div class="top-actions">
+        <button class="btn-secondary" onclick={() => goto('/system-prompt')}>System Prompt</button>
         <button class="btn-primary" onclick={() => templateModal = true}>+ New Project</button>
       </div>
     </div>
@@ -132,14 +133,11 @@
           <div class="card-accent" style:background="var(--blue)"></div>
           <div class="card-body">
             <div class="card-title">{project.title || 'Untitled Project'}</div>
-            {#if project.meta?.name}
-              <div class="card-name">{project.meta.name}</div>
+            {#if project.client}
+              <div class="card-client">{project.client}</div>
             {/if}
-            {#if project.meta?.client}
-              <div class="card-client">{project.meta.client}</div>
-            {/if}
-            {#if project.meta?.number}
-              <div class="card-num">{project.meta.number}</div>
+            {#if project.number}
+              <div class="card-num">{project.number}</div>
             {/if}
             <div class="card-meta">
               {#if project.viewStart}
@@ -303,6 +301,21 @@
     transition: background .12s;
   }
   .btn-primary:hover { background: #1A93C8; }
+  .btn-secondary {
+    background: none;
+    color: #888;
+    border: 1px solid var(--lgray);
+    border-radius: 3px;
+    padding: 9px 18px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    cursor: pointer;
+    transition: border-color .12s, color .12s;
+  }
+  .btn-secondary:hover { border-color: var(--blue); color: var(--blue); }
 
   /* Grid */
   .project-grid {
@@ -334,13 +347,6 @@
     letter-spacing: .08em;
     color: var(--black);
     margin-bottom: 4px;
-  }
-  .card-name {
-    font-family: 'Barlow', sans-serif;
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--black);
-    margin-bottom: 3px;
   }
   .card-client {
     font-size: 11px;

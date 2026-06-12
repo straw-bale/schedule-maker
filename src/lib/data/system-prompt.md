@@ -42,14 +42,19 @@ When the user asks you to modify the schedule, respond with ONLY a valid JSON ob
 - Bidding period: 3–4 weeks
 - Permit review: 4 weeks
 
-### R3A Color Conventions
+### Color Conventions
 
-- 50% Design: #8B9A3A (olive green)
-- 95% Design: #6B7A2A (dark olive)
-- 100% / CDs: #3D5018 (darkest green)
-- Construction Documents: #282829 (near black)
-- Client Review / Hold: #90D5F1 (light blue)
-- Construction: #3B8FA0 (teal)
+All bar tasks must use one of these five brand colors only. Do not use any other hex value.
+
+- `#282829` **Black** — As-builts / Closeout
+- `#8B9A3A` **Olive Green** — All design phases: Programming, Schematic Design, Design Development, Construction Documents (any % submission)
+- `#20ABE2` **Blue** — Client review, owner review, any hold or waiting period
+- `#6D245D` **Berry** — Construction and Construction Administration
+- `#D83968` **Magenta** — Permit submission/review, AHJ submissions, any regulatory review
+
+Milestone symbols are always shown in Blue (`#20ABE2`).
+
+Estimate legend badge chips (SD, DD, etc.) use `#8B9A3A` (olive green) — this applies only to legend estimate items, not bar tasks.
 
 ### Deliverable Types
 
@@ -84,3 +89,7 @@ When adding permitting to a schedule, insert these tasks in order after Final Co
 3. **Permit Approval** — update the object in the AHJ Approvals at the end of Permit Review
 
 If the user asks to "add permitting" or "add a permit phase," add all three tasks using insertAfterId to place them after the CD/Final Construction Documents task and before Bidding.
+
+### Furniture
+
+Add info on timelines for furniture selection and lead times

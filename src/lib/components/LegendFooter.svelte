@@ -1,5 +1,5 @@
 <script>
-  let { legend, tasks = [], onUpdate, onMilestoneDrag, onApprovalDrag, onAddMilestone, onAddDeliverable, onAddApproval, onAddEstimate, onLinkClick } = $props();
+  let { legend, tasks = [], onUpdate, onMilestoneDrag, onApprovalDrag, onEstimateDrag, onAddMilestone, onAddDeliverable, onAddApproval, onAddEstimate, onLinkClick, notes = '', onNotesUpdate = null } = $props();
 
   function emit(section, items) {
     onUpdate(section, items);
@@ -21,6 +21,13 @@
   }
   function onDate(e, section, idx) {
     updateField(section, idx, 'date', e.target.value || null);
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${months[Number(m)-1]} ${Number(d)}, ${y}`;
   }
 </script>
 
@@ -56,10 +63,11 @@
               <span class="sub-lbl">Date:</span>
               <input
                 type="date"
-                class="date-inp"
+                class="date-inp no-print"
                 value={d.date ?? ''}
                 onchange={(e) => onDate(e, 'deliverables', i)}
               >
+              <span class="date-print print-only">{fmtDate(d.date)}</span>
             </div>
           </div>
           <button class="leg-del" onclick={() => removeItem('deliverables', i)}>✕</button>
@@ -98,10 +106,11 @@
               <span class="sub-lbl">Date:</span>
               <input
                 type="date"
-                class="date-inp"
+                class="date-inp no-print"
                 value={m.date ?? ''}
                 onchange={(e) => onDate(e, 'milestones', i)}
               >
+              <span class="date-print print-only">{fmtDate(m.date)}</span>
             </div>
           </div>
           <button class="leg-del" onclick={() => removeItem('milestones', i)}>✕</button>
@@ -119,18 +128,23 @@
     <div class="leg-items">
       {#each legend.estimates as e, i}
         <div class="leg-row">
-          <label class="color-swatch" style:background={e.color} title="Change color">
-            <input type="color" value={e.color} oninput={(ev) => onColor(ev, 'estimates', i)}>
-          </label>
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="leg-code"
+            style:background={e.color}
+            title="Drag to schedule"
+            onmousedown={(ev) => { if (ev.button === 0) { ev.preventDefault(); onEstimateDrag?.(e); } }}
+          >
+            <span
+              contenteditable="true"
+              spellcheck="false"
+              onblur={(ev) => onText(ev, 'estimates', i, 'code')}
+              onkeydown={(ev) => ev.key === 'Enter' && (ev.preventDefault(), ev.target.blur())}
+              onmousedown={(ev) => ev.stopPropagation()}
+            >{e.code}</span>
+          </div>
           <div class="leg-body">
             <div class="leg-line">
-              <span
-                class="leg-field leg-code"
-                contenteditable="true"
-                spellcheck="false"
-                onblur={(ev) => onText(ev, 'estimates', i, 'code')}
-                onkeydown={(ev) => ev.key === 'Enter' && (ev.preventDefault(), ev.target.blur())}
-              >{e.code}</span>
               <span
                 class="leg-field leg-name"
                 contenteditable="true"
@@ -139,13 +153,23 @@
                 onkeydown={(ev) => ev.key === 'Enter' && (ev.preventDefault(), ev.target.blur())}
               >{e.text}</span>
             </div>
+            <div class="leg-sub">
+              <span class="sub-lbl">Date:</span>
+              <input
+                type="date"
+                class="date-inp no-print"
+                value={e.date ?? ''}
+                onchange={(ev) => onDate(ev, 'estimates', i)}
+              >
+              <span class="date-print print-only">{fmtDate(e.date)}</span>
+            </div>
           </div>
           <button class="leg-del" onclick={() => removeItem('estimates', i)}>✕</button>
         </div>
       {/each}
       <button type="button" class="leg-add"
         onclick={(e) => onAddEstimate?.(e)}
-        title="Click to add">+ Add</button>
+        title="Click to add, then click on schedule to place">+ Add</button>
     </div>
   </div>
 
@@ -175,10 +199,11 @@
               <span class="sub-lbl">Date:</span>
               <input
                 type="date"
-                class="date-inp"
+                class="date-inp no-print"
                 value={a.date ?? ''}
                 onchange={(e) => onDate(e, 'approvals', i)}
               >
+              <span class="date-print print-only">{fmtDate(a.date)}</span>
             </div>
           </div>
           <button class="leg-del" onclick={() => removeItem('approvals', i)}>✕</button>
@@ -190,10 +215,17 @@
     </div>
   </div>
 
-  <!-- Meetings & Notes -->
+  <!-- Notes -->
   <div class="leg-col">
-    <div class="leg-hdr">Meetings &amp; Notes</div>
-    <div class="leg-items leg-empty">—</div>
+    <div class="leg-hdr">Notes</div>
+    <div class="leg-items">
+      <textarea
+        class="notes-area"
+        spellcheck="false"
+        placeholder="Add notes…"
+        onblur={(e) => onNotesUpdate?.(e.target.value)}
+      >{notes}</textarea>
+    </div>
   </div>
 
 </footer>
@@ -231,6 +263,22 @@
     color: #ccc;
     font-style: italic;
   }
+  .notes-area {
+    width: 100%;
+    height: 100%;
+    min-height: 60px;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px;
+    color: var(--black);
+    line-height: 1.5;
+    background: transparent;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  .notes-area::placeholder { color: #ccc; }
 
   /* Row */
   .leg-row {
@@ -269,18 +317,20 @@
   .leg-diamond:active { cursor: grabbing; }
 
   .ms-pill {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-family: 'Barlow Condensed', sans-serif;
     font-weight: 700;
     font-size: 9px;
-    padding: 2px 6px;
-    border-radius: 10px;
     color: #fff;
     white-space: nowrap;
     flex-shrink: 0;
-    margin-top: 2px;
+    margin-top: 1px;
     cursor: grab;
     user-select: none;
-    box-shadow: 0 1px 4px rgba(0,0,0,.2);
   }
   .ms-pill:active { cursor: grabbing; }
 
@@ -351,17 +401,29 @@
   .date-inp:hover { border-bottom-color: var(--blue); }
   .date-inp:focus { border-bottom-color: var(--blue); color: var(--black); }
 
-  /* Code chip */
+  /* Code chip — draggable, color set via inline style */
   .leg-code {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-family: 'Barlow Condensed', sans-serif;
     font-weight: 700;
-    font-size: 10.5px;
-    background: rgba(0,0,0,.06);
-    border-radius: 2px;
-    padding: 1px 5px;
-    min-width: 20px;
-    text-align: center;
+    font-size: 9px;
+    color: #fff;
     flex-shrink: 0;
+    margin-top: 1px;
+    cursor: grab;
+    user-select: none;
+    line-height: 1;
+  }
+  .leg-code:active { cursor: grabbing; }
+  .leg-code span {
+    pointer-events: auto;
+    cursor: text;
+    outline: none;
+    user-select: text;
   }
 
   /* Editable text */
@@ -417,10 +479,19 @@
   .leg-add:active { cursor: grabbing; }
   .leg-col:hover .leg-add { opacity: 1; }
 
+  .print-only { display: none; }
+
   @media print {
-    .leg-del, .leg-add, .date-inp { display: none !important; }
+    .leg-del, .leg-add { display: none !important; }
     .leg-field { cursor: default; }
     .leg-col  { overflow: visible !important; }
     .leg-items { overflow: visible !important; height: auto !important; }
+    .print-only { display: inline !important; }
+  }
+
+  .date-print {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 10.5px;
+    color: #888;
   }
 </style>

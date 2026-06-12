@@ -137,6 +137,7 @@ ${JSON.stringify(project, null, 2)}`;
     z-index: 400;
     transform: translateX(100%);
     transition: transform .22s ease;
+    padding-bottom: 56px;
   }
   .ai-sidebar.open { transform: translateX(0); }
 
@@ -237,4 +238,6 @@ ${JSON.stringify(project, null, 2)}`;
   }
   .ai-send-btn:hover:not(:disabled) { background: #1A93C8; }
   .ai-send-btn:disabled { opacity: .45; cursor: default; }
+
+  @media print { .ai-sidebar { display: none !important; } }
 </style>

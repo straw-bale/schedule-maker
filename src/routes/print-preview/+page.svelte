@@ -53,14 +53,14 @@
         {/if}
       </div>
       <div class="preview-meta">
-        {#each Object.values(project.meta ?? {}) as v}
-          {#if v}<div class="preview-meta-item">{v}</div>{/if}
+        {#each [project.date, project.number, project.client].filter(Boolean) as v}
+          <div class="preview-meta-item">{v}</div>
         {/each}
       </div>
     </header>
 
     <div class="preview-body">
-      <div class="preview-inner" style:width="{contentW}px">
+      <div class="preview-inner" style:width="{contentW}px" style:min-width="{contentW}px">
         <TaskPanel
           tasks={project.tasks}
           onRename={noop}
@@ -91,6 +91,7 @@
       <LegendFooter
         legend={project.legend}
         tasks={project.tasks}
+        notes={project.notes ?? ''}
         onUpdate={noop}
       />
     {/if}
@@ -107,9 +108,10 @@
   :global(html, body) { margin: 0; padding: 0; background: #fff; overflow: hidden; }
 
   .preview-pg {
-    display: flex;
+    display: inline-flex;
     flex-direction: column;
     background: #fff;
+    min-width: max-content;
   }
 
   .preview-hdr {

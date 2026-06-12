@@ -1,7 +1,7 @@
 <script>
   const ROW_H = 34;
 
-  let { tasks, onRename, onDelete, onReorder, onAdd, highlightId = null, zoom = 'month' } = $props();
+  let { tasks, onRename, onDelete, onReorder, onAdd, onDragChange, highlightId = null, zoom = 'month' } = $props();
 
   // monthly: year(18) + month(28) + markers(22) = 68px
   // biweek/week: year(18) + mspan(28) + col(22) + markers(22) = 90px
@@ -15,15 +15,20 @@
       const list    = handle.closest('.task-list');
       const rowEl   = handle.closest('.t-row');
       const rowRect = rowEl.getBoundingClientRect();
+      const draggingTaskId = Number(rowEl.dataset.id);
+
+      // Signal highlight immediately on mousedown (no position yet — just lights up the row)
+      onDragChange?.(draggingTaskId, null);
+      let insertAt = -1;
 
       let dragActivated = false;
       let ghost  = null;
       let spacer = null;
-      let insertAt = -1;
 
       function activate() {
         const allRows = [...list.querySelectorAll('.t-row')];
         insertAt = allRows.indexOf(rowEl);
+        onDragChange?.(draggingTaskId, insertAt);
 
         ghost = document.createElement('div');
         ghost.className = 't-ghost';
@@ -55,6 +60,7 @@
         spacer.remove();
         if (insertAt >= rows.length) list.appendChild(spacer);
         else rows[insertAt].before(spacer);
+        onDragChange?.(draggingTaskId, insertAt);
       }
 
       function onMove(ev) {
@@ -69,6 +75,7 @@
       function onUp() {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
+        onDragChange?.(null, null);
         if (!dragActivated) return;
         ghost.remove();
         spacer.remove();
@@ -83,18 +90,18 @@
     });
   }
 
-  function mountDrag(el) {
-    initRowDrag(el);
-  }
+  function mountDrag(el) { initRowDrag(el); }
 </script>
 
+
 <div class="task-panel">
-  <div class="col-hdr-lbl" style:height="{hdrH}px">Milestones, Tasks &amp; Deliverables</div>
+  <div class="col-hdr-lbl" style:height="{hdrH}px">Tasks</div>
 
   <div class="task-list">
     {#each tasks as task, i (task.id)}
-      <div class="t-row" class:t-highlight={task.id === highlightId}>
+      <div class="t-row" class:t-highlight={task.id === highlightId} data-id={task.id}>
         <div class="t-drag" title="Drag to reorder" use:mountDrag>⠿</div>
+
         <div
           class="t-name"
           contenteditable="true"
@@ -102,7 +109,7 @@
           onblur={(e) => onRename(task.id, e.target.textContent.trim() || task.name)}
           onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }}
         >{task.name}</div>
-        <div class="t-del" title="Remove" onclick={() => onDelete(task.id)}>✕</div>
+        <div class="t-del no-print" title="Remove" onclick={() => onDelete(task.id)}>✕</div>
       </div>
     {/each}
   </div>
@@ -123,7 +130,6 @@
     left: 0;
   }
   .col-hdr-lbl {
-    /* height set inline: 68px monthly, 90px biweek/week */
     display: flex;
     align-items: flex-end;
     padding: 0 12px 8px;
@@ -140,9 +146,7 @@
     z-index: 21;
     background: #fff;
   }
-  .task-list {
-    position: relative;
-  }
+  .task-list { position: relative; }
   .t-row {
     height: 34px;
     display: flex;
@@ -151,10 +155,13 @@
     border-bottom: 1px solid var(--lgray);
     gap: 5px;
     transition: background .1s;
+    position: relative;
   }
   .t-row:hover { background: rgba(32,171,226,.04); }
+  .t-row:has(.t-drag:active) { background: rgba(32,171,226,.1) !important; }
   .t-row.dragging { display: none; }
   .t-highlight { background: rgba(0,0,0,.06) !important; }
+
   .t-drag {
     opacity: 0;
     color: #bbb;
@@ -169,6 +176,7 @@
   .t-row:hover .t-drag { opacity: 1; }
   .t-drag:hover { color: #888; }
   .t-drag:active { cursor: grabbing; }
+
   .t-name {
     flex: 1;
     font-family: 'Barlow', sans-serif;
@@ -199,6 +207,7 @@
   }
   .t-row:hover .t-del { opacity: 1; }
   .t-del:hover { color: var(--mag); }
+
   .add-btn {
     padding: 7px 12px;
     font-family: 'Barlow Condensed', sans-serif;
@@ -214,7 +223,6 @@
   }
   .add-btn:hover { background: rgba(32,171,226,.06); }
 
-  /* Ghost + drop indicator (injected imperatively during drag) */
   :global(.t-ghost) {
     position: fixed;
     background: #fff;
@@ -239,8 +247,10 @@
   }
 
   @media print {
-    .task-col    { position: relative; }
+    .task-panel  { position: relative; }
     .col-hdr-lbl { position: relative; }
-    .t-row-actions { display: none !important; }
+    /* Allow names to wrap — overflow visible so second line shows below the row */
+    .t-name      { white-space: normal; line-height: 1.3; }
+    .t-drag      { display: none !important; }
   }
 </style>

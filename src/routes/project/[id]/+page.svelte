@@ -1,6 +1,6 @@
 ﻿<script>
   import { projectStore } from '$lib/stores/projects.js';
-  import { generateId, parseDate, toISO, MONTHS_SHORT, monthList, totalDays } from '$lib/utils/dates.js';
+  import { generateId, parseDate, toISO, MONTHS_SHORT, monthList, totalDays, ZOOM_COL_W } from '$lib/utils/dates.js';
   import TaskPanel    from '$lib/components/TaskPanel.svelte';
   import GanttPanel   from '$lib/components/GanttPanel.svelte';
   import LegendFooter from '$lib/components/LegendFooter.svelte';
@@ -24,11 +24,17 @@
   let highlightTaskId  = $state(null);  // briefly highlights a Gantt row on click-to-link
 
   // Gantt geometry for date-from-x computation
-  const COL_W = 72;
-  let ganttMonths = $derived(project ? monthList(parseDate(project.viewStart), parseDate(project.viewEnd)) : []);
-  let ganttWidth  = $derived(ganttMonths.length * COL_W);
-
   const TASK_COL_W = 252;
+  let schW        = $state(0);
+  let ganttMonths = $derived(project ? monthList(parseDate(project.viewStart), parseDate(project.viewEnd)) : []);
+  let fitColW     = $derived(ganttMonths.length > 0 ? Math.max(20, Math.floor((schW - TASK_COL_W) / ganttMonths.length)) : 72);
+  let printColW   = $state(null); // non-null during print: forces fit-to-paper column width
+  let effectiveColW = $derived(
+    printColW !== null ? printColW :
+    zoom === 'fit' ? fitColW : (ZOOM_COL_W[zoom] ?? 72)
+  );
+  let ganttWidth  = $derived(ganttMonths.length * effectiveColW);
+  let displayZoom = $derived(zoom === 'fit' ? 'month' : zoom);
 
   function xToDate(clientX) {
     if (!schScrollEl || !project) return null;
@@ -184,9 +190,10 @@
   function makeEstimateGhost(est) {
     const g = document.createElement('div');
     g.style.cssText = GHOST_CSS;
-    const swatch = document.createElement('div');
-    swatch.style.cssText = `width:12px;height:12px;border-radius:2px;background:${est.color};flex-shrink:0;`;
-    g.appendChild(swatch);
+    const circle = document.createElement('div');
+    circle.style.cssText = `width:18px;height:18px;border-radius:50%;background:${est.color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;`;
+    circle.textContent = est.code || 'E';
+    g.appendChild(circle);
     g.appendChild(document.createTextNode(est.text));
     return g;
   }
@@ -204,6 +211,13 @@
     startLegendDrag(makeApprovalGhost(a), 0, 0, (date) => {
       const idx = project.legend.approvals.findIndex(ap => ap.text === a.text);
       if (idx >= 0) projectStore.updateLegendItem(data.id, 'approvals', idx, { date });
+    });
+  }
+
+  function startEstimateDrag(est) {
+    startLegendDrag(makeEstimateGhost(est), 0, 0, (date) => {
+      const idx = project.legend.estimates.findIndex(e => e.code === est.code);
+      if (idx >= 0) projectStore.updateLegendItem(data.id, 'estimates', idx, { date });
     });
   }
 
@@ -246,12 +260,12 @@
     if (!project) return;
     const n   = (project.legend.estimates?.length ?? 0) + 1;
     const est = { code: `E${n}`, text: 'New Estimate', color: '#8B9A3A' };
-    startStickyDrag(makeEstimateGhost(est), e.clientX, e.clientY, () => {
+    startStickyDrag(makeEstimateGhost(est), e.clientX, e.clientY, (date) => {
       projectStore.updateLegendSection(data.id, 'estimates', [
         ...(project.legend.estimates ?? []),
-        est,
+        { ...est, date },
       ]);
-    }, { anyDrop: true });
+    });
   }
 
   function linkToGantt(msCode) {
@@ -282,19 +296,24 @@
   }
   function handleAdd() {
     if (!project) return;
+    const vs  = parseDate(project.viewStart);
+    const ve  = parseDate(project.viewEnd);
+    const mid = new Date((vs.getTime() + ve.getTime()) / 2);
+    const s   = new Date(mid.getFullYear(), mid.getMonth(), 1);
+    const e   = new Date(mid.getFullYear(), mid.getMonth() + 1, 1);
     const task = {
       id:    (project.nextTaskId ?? Date.now()),
       name:  'New Task',
       type:  'bar',
       color: '#20ABE2',
-      start: project.viewStart,
-      end:   project.viewEnd,
+      start: toISO(s),
+      end:   toISO(e),
     };
     projectStore.addTask(data.id, task);
   }
 
   function updateMeta(field, val) {
-    projectStore.updateMeta(data.id, { meta: { ...project.meta, [field]: val } });
+    projectStore.updateProject(data.id, { [field]: val });
   }
   let titleEl    = $state(null);
   let subtitleEl = $state(null);
@@ -303,10 +322,10 @@
   $effect(() => { if (subtitleEl && document.activeElement !== subtitleEl) subtitleEl.textContent = project?.subtitle ?? ''; });
 
   function updateTitle(val) {
-    projectStore.updateMeta(data.id, { title: val });
+    projectStore.updateProject(data.id, { title: val });
   }
   function updateSubtitle(val) {
-    projectStore.updateMeta(data.id, { subtitle: val });
+    projectStore.updateProject(data.id, { subtitle: val });
   }
 
   function handleLegendUpdate(section, items) {
@@ -322,10 +341,30 @@
   let draggingTaskId = $state(null);
   function handleDraggingChange(id) { draggingTaskId = id; }
 
+  let reorderDraggingId  = $state(null);
+  let reorderInsertIdx   = $state(null);
+
   let zoom           = $state('month');
   let showTodayLine  = $state(true);
   let printPanelOpen = $state(false);
   let hideLegendPrint = $state(false);
+
+  let footerH = $state(null); // null = auto height
+
+  function startFooterResize(e) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = footerH ?? e.currentTarget.nextElementSibling?.getBoundingClientRect().height ?? 180;
+    function onMove(ev) {
+      footerH = Math.max(48, Math.min(600, startH + (startY - ev.clientY)));
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
 
   // Timeline range controls
   function adjustView(startDelta, endDelta) {
@@ -336,7 +375,7 @@
     ve.setMonth(ve.getMonth() + endDelta);
     const monthSpan = (ve.getFullYear() - vs.getFullYear()) * 12 + ve.getMonth() - vs.getMonth();
     if (monthSpan < 2) return;
-    projectStore.updateMeta(data.id, { viewStart: toISO(vs), viewEnd: toISO(ve) });
+    projectStore.updateProject(data.id, { viewStart: toISO(vs), viewEnd: toISO(ve) });
   }
 
   function fmtMonthYear(dateStr) {
@@ -356,7 +395,7 @@
       if (c.type === 'updateTask')       projectStore.updateTask(data.id, c.taskId, c.patch);
       if (c.type === 'addTask')          projectStore.addTask(data.id, c.task, c.insertAfterId ?? null);
       if (c.type === 'deleteTask')       projectStore.deleteTask(data.id, c.taskId);
-      if (c.type === 'updateView')       projectStore.updateMeta(data.id, c.patch);
+      if (c.type === 'updateView')       projectStore.updateProject(data.id, c.patch);
       if (c.type === 'updateLegendItem') projectStore.updateLegendItem(data.id, c.section, c.index, c.patch);
     }
   }
@@ -371,17 +410,28 @@
     const prevZoom  = zoom;
     const prevToday = showTodayLine;
     const prevAi    = aiOpen;
+    const prevTitle = document.title;
 
     zoom          = 'month';
     showTodayLine = showToday;
     hideLegendPrint = !showLegend;
     aiOpen        = false;
-    await tick();
 
     const paperUsableW = paper === 'tabloid' ? 1555 : 979;
-    const contentW     = TASK_COL_W + ganttMonths.length * COL_W;
-    const scale        = Math.min(1, paperUsableW / contentW);
+    if (ganttMonths.length > 0) {
+      printColW = Math.max(20, Math.round((paperUsableW - TASK_COL_W) / ganttMonths.length));
+    }
+    await tick();
+
+    const contentW = TASK_COL_W + ganttMonths.length * (printColW ?? ZOOM_COL_W['month'] ?? 72);
+    const scale    = Math.min(1, paperUsableW / contentW);
     document.documentElement.style.setProperty('--print-scale', scale.toFixed(4));
+
+    // Filename: [number]_[YYYYMMDD]_Project Schedule
+    const today    = new Date();
+    const yyyymmdd = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+    const num      = project?.number?.trim();
+    document.title = [num, yyyymmdd, 'Project Schedule'].filter(Boolean).join('_');
 
     // Inject dynamic @page rule for the selected paper size
     const pageStyle = document.createElement('style');
@@ -395,6 +445,8 @@
     document.getElementById('__r3a_page')?.remove();
 
     document.documentElement.style.removeProperty('--print-scale');
+    document.title  = prevTitle;
+    printColW       = null;
     zoom            = prevZoom;
     showTodayLine   = prevToday;
     hideLegendPrint = false;
@@ -431,34 +483,29 @@
             onblur={(e) => updateSubtitle(e.target.textContent.trim() || project.subtitle)}
             onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(), e.target.blur(); } }}
           ></div>
+          <div class="hdr-meta">
+            <div
+              class="meta-field"
+              contenteditable="true"
+              spellcheck="false"
+              onblur={(e) => updateMeta('date', e.target.textContent.trim())}
+            >{project.date || 'Date'}</div>
+            <span class="meta-sep">·</span>
+            <div
+              class="meta-field"
+              contenteditable="true"
+              spellcheck="false"
+              onblur={(e) => updateMeta('number', e.target.textContent.trim())}
+            >{project.number || 'Project Number'}</div>
+            <span class="meta-sep">·</span>
+            <div
+              class="meta-field"
+              contenteditable="true"
+              spellcheck="false"
+              onblur={(e) => updateMeta('client', e.target.textContent.trim())}
+            >{project.client || 'Client'}</div>
+          </div>
         </div>
-      </div>
-
-      <div class="hdr-meta">
-        <div
-          class="meta-field"
-          contenteditable="true"
-          spellcheck="false"
-          onblur={(e) => updateMeta('date', e.target.textContent.trim())}
-        >{project.meta.date || 'Date'}</div>
-        <div
-          class="meta-field"
-          contenteditable="true"
-          spellcheck="false"
-          onblur={(e) => updateMeta('number', e.target.textContent.trim())}
-        >{project.meta.number || 'Project Number'}</div>
-        <div
-          class="meta-field"
-          contenteditable="true"
-          spellcheck="false"
-          onblur={(e) => updateMeta('client', e.target.textContent.trim())}
-        >{project.meta.client || 'Client'}</div>
-        <div
-          class="meta-field"
-          contenteditable="true"
-          spellcheck="false"
-          onblur={(e) => updateMeta('name', e.target.textContent.trim())}
-        >{project.meta.name || 'Project Name'}</div>
       </div>
 
       <div class="hdr-actions no-print">
@@ -491,6 +538,7 @@
       <div class="tl-end tl-end-right">
         <div class="view-opts">
           <div class="zoom-ctrl">
+            <button class="zoom-btn" class:zoom-active={zoom === 'fit'}    onclick={() => zoom = 'fit'}   >Fit</button>
             <button class="zoom-btn" class:zoom-active={zoom === 'month'}  onclick={() => zoom = 'month'} >Mo</button>
             <button class="zoom-btn" class:zoom-active={zoom === 'biweek'} onclick={() => zoom = 'biweek'}>2W</button>
             <button class="zoom-btn" class:zoom-active={zoom === 'week'}   onclick={() => zoom = 'week'}>Wk</button>
@@ -514,7 +562,7 @@
     <!-- Main schedule area -->
     <div class="sch-body">
       <div class="sch-main">
-        <div class="sch-scroll" bind:this={schScrollEl}>
+        <div class="sch-scroll" bind:this={schScrollEl} bind:offsetWidth={schW}>
           <div class="sch-inner" style:width="{TASK_COL_W + ganttWidth}px">
 
             <TaskPanel
@@ -523,8 +571,9 @@
               onDelete={handleDelete}
               onReorder={handleReorder}
               onAdd={handleAdd}
+              onDragChange={(id, idx) => { reorderDraggingId = id; reorderInsertIdx = idx; }}
               highlightId={draggingTaskId}
-              zoom={zoom}
+              zoom={displayZoom}
             />
 
             <GanttPanel
@@ -538,7 +587,11 @@
               onTaskUpdate={handleTaskUpdate}
               onLegendItemUpdate={handleLegendItemUpdate}
               onDraggingChange={handleDraggingChange}
-              zoom={zoom}
+              onColorChange={(id, color) => projectStore.updateTask(data.id, id, { color })}
+              reorderDraggingId={reorderDraggingId}
+              reorderInsertIdx={reorderInsertIdx}
+              zoom={displayZoom}
+              colWOverride={zoom === 'fit' || printColW !== null ? effectiveColW : null}
               showTodayLine={showTodayLine}
             />
 
@@ -546,18 +599,27 @@
         </div>
       </div>
 
-      <div class:no-print={hideLegendPrint}>
+      <div class="footer-resizer no-print" onmousedown={startFooterResize}></div>
+
+      <div class="legend-wrap"
+           class:no-print={hideLegendPrint}
+           style:height={footerH ? footerH + 'px' : null}
+           style:overflow-y={footerH ? 'auto' : null}
+           style:flex-shrink="0">
         <LegendFooter
           legend={project.legend}
           tasks={project.tasks}
           onUpdate={handleLegendUpdate}
           onMilestoneDrag={startMilestoneDrag}
           onApprovalDrag={startApprovalDrag}
+          onEstimateDrag={startEstimateDrag}
           onAddMilestone={handleAddMilestone}
           onAddDeliverable={handleAddDeliverable}
           onAddApproval={handleAddApproval}
           onAddEstimate={handleAddEstimate}
           onLinkClick={linkToGantt}
+          notes={project.notes ?? ''}
+          onNotesUpdate={(val) => projectStore.updateProject(data.id, { notes: val })}
         />
       </div>
     </div>
@@ -659,19 +721,24 @@
   .hdr-sub:focus { background: rgba(32,171,226,.06); border-radius: 2px; padding: 0 4px; }
   .hdr-meta {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    flex-shrink: 0;
-    gap: 1px;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px 0;
+    margin-top: 5px;
+  }
+  .meta-sep {
+    font-size: 9px;
+    color: #ccc;
+    padding: 0 5px;
+    user-select: none;
   }
   .meta-field {
     font-family: 'Barlow Condensed', sans-serif;
     font-size: 10.5px;
-    color: #888;
+    color: #999;
     outline: none;
     cursor: text;
-    text-align: right;
-    min-width: 40px;
   }
   .meta-field:focus { background: rgba(32,171,226,.06); border-radius: 2px; padding: 0 4px; }
   .hdr-actions {
@@ -839,6 +906,18 @@
   .sch-scroll { width: 100%; height: 100%; overflow: auto; }
   .sch-inner  { display: flex; min-height: 100%; }
 
+  .footer-resizer {
+    height: 5px;
+    flex-shrink: 0;
+    cursor: row-resize;
+    background: var(--lgray);
+    transition: background .15s;
+    position: relative;
+    z-index: 10;
+  }
+  .footer-resizer:hover,
+  .footer-resizer:active { background: var(--blue); }
+
   /* R3A print mark */
   .r3a-mark {
     display: none;
@@ -868,19 +947,20 @@
       height: auto !important;
       overflow: visible !important;
     }
-    .sch-hdr {
-      padding: 8px 14px 6px;
-    }
+    .sch-hdr { padding: 8px 14px 6px; }
     .hdr-title { font-size: 20px; }
 
-    .sch-body  { overflow: visible !important; height: auto !important; flex: none !important; }
-    .sch-main  { overflow: visible !important; height: auto !important; flex: none !important; }
-    .sch-scroll {
-      overflow: visible !important;
-      width: auto !important;
-      height: auto !important;
+    /* Content flows naturally; padding reserves space above the fixed footer */
+    .sch-body   { overflow: visible !important; height: auto !important; flex: none !important; padding-bottom: 130px; }
+    .sch-main   { overflow: visible !important; height: auto !important; flex: none !important; }
+    .sch-scroll { overflow: visible !important; width: auto !important; height: auto !important; }
+    .sch-inner  { min-height: unset !important; }
+
+    /* Legend footer pinned to page bottom — never overlaps schedule rows */
+    .legend-wrap {
+      position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
+      height: auto !important; overflow: visible !important; background: #fff;
     }
-    .sch-inner { min-height: unset !important; }
 
     .r3a-mark {
       display: block !important;

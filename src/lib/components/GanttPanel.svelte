@@ -5,14 +5,42 @@
 
   let {
     tasks, viewStart: vsStr, viewEnd: veStr, todayMark: tmStr,
-    onTaskUpdate, onLegendItemUpdate = null, onDraggingChange = null,
+    onTaskUpdate, onLegendItemUpdate = null, onDraggingChange = null, onColorChange = null,
     legend = null, dropDate = null, highlightTaskId = null,
     zoom = 'month', showTodayLine = true,
+    reorderDraggingId = null, reorderInsertIdx = null,
+    colWOverride = null,
   } = $props();
+
+  // Task ID that a reorder gap should appear before (null = no gap, 'end' = after all tasks)
+  let gapBeforeId = $derived.by(() => {
+    if (reorderDraggingId === null || reorderInsertIdx === null) return null;
+    let vis = 0;
+    for (const t of tasks) {
+      if (t.id === reorderDraggingId) continue;
+      if (vis === reorderInsertIdx) return t.id;
+      vis++;
+    }
+    return 'end';
+  });
+
+  // Ghost bar at the drop target position (follows the gap)
+  let ghostTask = $derived(reorderDraggingId !== null && reorderInsertIdx !== null
+    ? tasks.find(t => t.id === reorderDraggingId) ?? null
+    : null);
+  let ghostY = $derived(reorderInsertIdx !== null ? reorderInsertIdx * ROW_H : null);
+
+  const BAR_COLORS = [
+    { hex: '#282829', label: 'Black — Programming / Bidding / Closeout' },
+    { hex: '#00914D', label: 'Lime — Design phases (SD, DD, CDs)'       },
+    { hex: '#20ABE2', label: 'Blue — Client / Owner Review'             },
+    { hex: '#6D245D', label: 'Berry — Construction & CA'                },
+    { hex: '#D83968', label: 'Magenta — Permit / AHJ'                   },
+  ];
 
   let viewStart  = $derived(parseDate(vsStr));
   let viewEnd    = $derived(parseDate(veStr));
-  let colW       = $derived(ZOOM_COL_W[zoom] ?? 72);
+  let colW       = $derived(colWOverride !== null ? colWOverride : (ZOOM_COL_W[zoom] ?? 72));
   let columns    = $derived(timeColumns(viewStart, viewEnd, zoom));
   let ganttWidth = $derived(columns.length * colW);
   let totalH     = $derived(tasks.length * ROW_H);
@@ -266,6 +294,23 @@
             {/if}
           {/if}
         {/each}
+        {#each (legend?.estimates ?? []) as e, i}
+          {@const date = overlayDate('estimates', i, e)}
+          {#if date}
+            {@const epx = px(date)}
+            {#if epx >= -30 && epx <= ganttWidth + 30}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="ov-pill"
+                style:left="{epx}px"
+                style:background={e.color}
+                style:color={isLightColor(e.color) ? 'rgba(0,0,0,.65)' : '#fff'}
+                onmousedown={(ev) => startOverlayDrag(ev, 'estimates', i, e.date)}
+                title="{e.text} — drag to reposition"
+              >{e.code}</div>
+            {/if}
+          {/if}
+        {/each}
       </div>
 
     </div>
@@ -322,15 +367,29 @@
             {/if}
           {/if}
         {/each}
+        {#each (legend?.estimates ?? []) as e, i}
+          {@const date = overlayDate('estimates', i, e)}
+          {#if date}
+            {@const epx = px(date)}
+            {#if epx >= 0 && epx <= ganttWidth}
+              <div class="ov-line" style:left="{epx}px" style:height="{totalH}px" style:border-color={e.color}></div>
+            {/if}
+          {/if}
+        {/each}
       </div>
 
       <!-- Bar rows -->
       <div class="bar-rows">
         {#each displayTasks as task (task.id)}
+          {#if gapBeforeId === task.id}
+            <div class="g-row g-reorder-gap"></div>
+          {/if}
           <div
             class="g-row"
             class:row-highlight={task.id === highlightTaskId}
             class:row-dragging={task.id === draggingId}
+            class:row-reorder-highlight={task.id === reorderDraggingId && reorderInsertIdx === null}
+            class:row-reorder-hidden={task.id === reorderDraggingId && reorderInsertIdx !== null}
           >
 
             {#if task.type === 'milestone'}
@@ -377,6 +436,24 @@
 
           </div>
         {/each}
+        {#if gapBeforeId === 'end'}
+          <div class="g-row g-reorder-gap"></div>
+        {/if}
+
+        {#if ghostTask && ghostY !== null && ghostTask.type === 'bar'}
+          {@const rawLeft  = px(ghostTask.start)}
+          {@const rawRight = px(ghostTask.end)}
+          {@const left     = Math.max(0, rawLeft)}
+          {@const width    = Math.max(rawRight - left, 6)}
+          {#if rawRight >= 0 && rawLeft <= ganttWidth}
+            <div class="g-ghost-bar"
+              style:top="{ghostY + 7}px"
+              style:left="{left}px"
+              style:width="{width}px"
+              style:background={ghostTask.color}
+            ></div>
+          {/if}
+        {/if}
       </div>
 
     </div>
@@ -385,6 +462,8 @@
 
 <!-- Date popup -->
 {#if popupTask}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="dp-backdrop" onclick={closePopup}></div>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="dp" style:left="{popupX}px" style:top="{popupY}px">
     <div class="dp-close" onclick={closePopup}>✕</div>
@@ -397,6 +476,18 @@
       <input type="date" value={popupTask.start} oninput={(e) => onPopupChange('start', e.target.value)}>
       <div class="dp-lbl">End</div>
       <input type="date" value={popupTask.end} oninput={(e) => onPopupChange('end', e.target.value)}>
+      <div class="dp-lbl">Color</div>
+      <div class="dp-colors">
+        {#each BAR_COLORS as c}
+          <div
+            class="dp-swatch"
+            class:dp-swatch-active={popupTask.color === c.hex}
+            style:background={c.hex}
+            title={c.label}
+            onclick={() => { onColorChange?.(popupTask.id, c.hex); popupTask = { ...popupTask, color: c.hex }; }}
+          ></div>
+        {/each}
+      </div>
     {/if}
   </div>
 {/if}
@@ -511,8 +602,24 @@
   /* Rows */
   .bar-rows { position: relative; z-index: 4; }
   .g-row    { height: 34px; position: relative; border-bottom: 1px solid var(--lgray); overflow: visible; }
-  .row-highlight { background: rgba(32,171,226,.14) !important; }
-  .row-dragging  { background: rgba(0,0,0,.04); }
+  .row-highlight  { background: rgba(32,171,226,.14) !important; }
+  .row-dragging        { background: rgba(0,0,0,.04); }
+  .row-reorder-highlight { background: rgba(32,171,226,.1) !important; }
+  .row-reorder-hidden  { display: none; }
+  .g-ghost-bar {
+    position: absolute;
+    height: 20px;
+    border-radius: 2px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 3;
+  }
+  .g-reorder-gap  {
+    background: rgba(32,171,226,.12);
+    border-top: 2px solid var(--blue);
+    border-bottom: 1px solid var(--lgray);
+    pointer-events: none;
+  }
 
   /* Bars */
   .bar {
@@ -547,7 +654,7 @@
   .ms-dot {
     position: absolute; top: 50%; transform: translate(-50%, -50%);
     width: 14px; height: 14px; border-radius: 50%;
-    border: 2px solid var(--black); background: #fff; z-index: 6; cursor: grab;
+    border: 2px solid var(--blue); background: #fff; z-index: 6; cursor: grab;
   }
   .ms-dot:active { cursor: grabbing; }
   .ms-lbl {
@@ -567,6 +674,9 @@
   .bdg-del { background: #D4804A; }
 
   /* Date popup */
+  .dp-backdrop {
+    position: fixed; inset: 0; z-index: 499; cursor: default;
+  }
   .dp {
     position: fixed; background: #fff;
     border: 1px solid var(--lgray); border-radius: 4px;
@@ -585,6 +695,15 @@
     padding: 5px 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; outline: none;
   }
   .dp input[type="date"]:focus { border-color: var(--blue); }
+  .dp-colors {
+    display: flex; gap: 5px; margin-top: 2px;
+  }
+  .dp-swatch {
+    width: 22px; height: 22px; border-radius: 3px; cursor: pointer;
+    border: 2px solid transparent; transition: transform .1s, border-color .1s;
+  }
+  .dp-swatch:hover { transform: scale(1.15); }
+  .dp-swatch.dp-swatch-active { border-color: var(--black); }
 
   @media print {
     .time-hdr    { position: relative; }

@@ -1,77 +1,78 @@
 import { writable } from 'svelte/store';
 import { createSampleProject } from '$lib/data/sample.js';
-
-const LS_KEY = 'r3a_projects';
+import { supabase } from '$lib/supabase.js';
 
 const { subscribe, update, set } = writable([]);
 
-function _persist(projects) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(projects));
-  } catch (e) {
-    console.error('[projects] localStorage save failed:', e);
-  }
+// Debounced upserts — coalesces rapid updates (e.g. dragging bars).
+const _saveTimers = new Map();
+
+function _saveProject(project) {
+  clearTimeout(_saveTimers.get(project.id));
+  _saveTimers.set(project.id, setTimeout(async () => {
+    const { error } = await supabase
+      .from('projects')
+      .upsert({ id: project.id, title: project.title ?? '', data: project }, { onConflict: 'id' });
+    if (error) console.error('[projects] save failed:', error.message);
+  }, 800));
 }
 
-// Debounced persist — coalesces rapid updates (e.g. dragging bars).
-let _saveTimer = null;
-function _scheduleSave() {
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(() => {
-    let current = [];
-    const unsub = subscribe(ps => { current = ps; });
-    unsub();
-    _persist(current);
-  }, 400);
+async function _deleteProject(id) {
+  const { error } = await supabase.from('projects').delete().eq('id', id);
+  if (error) console.error('[projects] delete failed:', error.message);
 }
 
 function _updateAndSave(projectId, fn) {
-  update(ps => {
-    const next = ps.map(p => p.id === projectId ? fn(p) : p);
-    clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(() => _persist(next), 400);
-    return next;
-  });
+  let saved = null;
+  update(ps => ps.map(p => {
+    if (p.id !== projectId) return p;
+    saved = fn(p);
+    return saved;
+  }));
+  if (saved) _saveProject(saved);
 }
 
 export const projectStore = {
   subscribe,
 
-  init() {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const projects = JSON.parse(raw);
-        if (Array.isArray(projects) && projects.length > 0) {
-          set(projects);
-          return;
-        }
-      }
-    } catch (e) {
-      console.error('[projects] localStorage load failed:', e);
+  async init() {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('data')
+      .order('created_at', { ascending: true });
+
+    // If the user added a project while the fetch was in flight, don't overwrite.
+    let current = [];
+    const unsub = subscribe(ps => { current = ps; });
+    unsub();
+    if (current.length > 0) return;
+
+    if (error) {
+      console.error('[projects] init failed:', error.message);
+      set([createSampleProject()]);
+      return;
     }
-    const sample = createSampleProject();
-    set([sample]);
-    _persist([sample]);
+
+    if (!data?.length) {
+      const sample = createSampleProject();
+      set([sample]);
+      _saveProject(sample);
+    } else {
+      set(data.map(row => row.data));
+    }
   },
 
   addProject(project) {
-    update(ps => {
-      const next = [...ps, project];
-      _persist(next);
-      return next;
-    });
+    update(ps => [...ps, project]);
+    _saveProject(project);
   },
 
   deleteProject(id) {
-    update(ps => {
-      const next = ps.filter(p => p.id !== id);
-      _persist(next);
-      return next;
-    });
+    update(ps => ps.filter(p => p.id !== id));
+    _deleteProject(id);
   },
 
-  updateMeta(id, patch) {
+  updateProject(id, patch) {
     _updateAndSave(id, p => ({ ...p, ...patch }));
   },
 
