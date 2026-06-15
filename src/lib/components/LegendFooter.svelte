@@ -52,14 +52,6 @@
               >{d.text}</span>
             </div>
             <div class="leg-sub">
-              <span class="sub-lbl">Display:</span>
-              <span
-                class="leg-field leg-date"
-                contenteditable="true"
-                spellcheck="false"
-                onblur={(e) => onText(e, 'deliverables', i, 'label')}
-                onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), e.target.blur())}
-              >{d.label ?? ''}</span>
               <span class="sub-lbl">Date:</span>
               <input
                 type="date"

@@ -370,10 +370,11 @@
   let reorderDraggingId  = $state(null);
   let reorderInsertIdx   = $state(null);
 
-  let zoom           = $state('month');
-  let showTodayLine  = $state(true);
-  let printPanelOpen = $state(false);
+  let zoom            = $state('month');
+  let showTodayLine   = $state(true);
+  let printPanelOpen  = $state(false);
   let hideLegendPrint = $state(false);
+  let printMultiPage  = $state(false);
 
   let shareCopied = $state(false);
   let shareCopiedTimer = null;
@@ -466,26 +467,20 @@
     const paperUsableW = paper === 'tabloid' ? 1555 : 979;
     const paperUsableH = paper === 'tabloid' ? 979  : 739;
 
-    // Initial column width sized to fill paper width at scale=1
+    // Set columns to fit paper width — use floor so total never exceeds page width
     if (ganttMonths.length > 0) {
-      printColW = Math.max(20, Math.round((paperUsableW - TASK_COL_W) / ganttMonths.length));
+      printColW = Math.max(20, Math.floor((paperUsableW - TASK_COL_W) / ganttMonths.length));
     }
     await tick();
 
-    // Measure full content height for vertical fit
-    const hdrH    = document.querySelector('.sch-hdr')?.offsetHeight ?? 64;
-    const legH    = showLegend ? (document.querySelector('.legend-wrap')?.scrollHeight ?? 150) : 0;
-    const contentH = hdrH + 68 + (project?.tasks?.length ?? 0) * 34 + legH;
-    const scaleH   = Math.min(1, paperUsableH / contentH);
-    const scale    = scaleH; // height is always the binding constraint after columns fill width
+    // Detect vertical overflow: if tasks + footer exceed one page → multi-page mode.
+    // Add 40px for the R3A mark (display:none on screen, shown in print).
+    const hdrH  = document.querySelector('.sch-hdr')?.offsetHeight ?? 64;
+    const footH = showLegend ? (document.querySelector('.legend-wrap')?.offsetHeight ?? 150) + 40 : 0;
+    const rowsH = (project?.tasks?.length ?? 0) * 34;
+    printMultiPage = (hdrH + 68 + rowsH + footH) > paperUsableH;
 
-    // Expand columns to fill the paper width at the final scale (ceil avoids right-edge gap)
-    if (ganttMonths.length > 0) {
-      printColW = Math.max(20, Math.ceil((paperUsableW / scale - TASK_COL_W) / ganttMonths.length));
-    }
-    await tick();
-
-    document.documentElement.style.setProperty('--print-scale', scale.toFixed(4));
+    document.documentElement.style.setProperty('--print-scale', '1');
 
     // Filename: [number]_[YYYYMMDD]_Project Schedule
     const today    = new Date();
@@ -497,7 +492,7 @@
     const pageStyle = document.createElement('style');
     pageStyle.id    = '__r3a_page';
     const paperName = paper === 'tabloid' ? 'tabloid' : 'letter';
-    pageStyle.textContent = `@page { size: ${paperName} landscape; margin: 0 0.4in; }`;
+    pageStyle.textContent = `@page { size: ${paperName} landscape; margin: 0.4in; }`;
     document.head.appendChild(pageStyle);
 
     window.print();
@@ -505,12 +500,13 @@
     document.getElementById('__r3a_page')?.remove();
 
     document.documentElement.style.removeProperty('--print-scale');
-    document.title  = prevTitle;
-    printColW       = null;
-    zoom            = prevZoom;
-    showTodayLine   = prevToday;
-    hideLegendPrint = false;
-    aiOpen          = prevAi;
+    document.title   = prevTitle;
+    printColW        = null;
+    printMultiPage   = false;
+    zoom             = prevZoom;
+    showTodayLine    = prevToday;
+    hideLegendPrint  = false;
+    aiOpen           = prevAi;
   }
 </script>
 
@@ -522,7 +518,7 @@
     <button onclick={() => goto('/')}>← Back to Projects</button>
   </div>
 {:else}
-  <div class="schedule-page" class:ai-open={aiOpen}>
+  <div class="schedule-page" class:ai-open={aiOpen} class:multi-page={printMultiPage}>
 
     <!-- Page header -->
     <header class="sch-hdr no-print-border">
@@ -670,31 +666,29 @@
 
       <div class="footer-resizer no-print" onmousedown={startFooterResize}></div>
 
-      <div class="legend-wrap"
-           class:no-print={hideLegendPrint}
-           style:height={footerH ? footerH + 'px' : null}
-           style:overflow-y={footerH ? 'auto' : null}
-           style:flex-shrink="0">
-        <LegendFooter
-          legend={project.legend}
-          tasks={project.tasks}
-          onUpdate={handleLegendUpdate}
-          onMilestoneDrag={startMilestoneDrag}
-          onApprovalDrag={startApprovalDrag}
-          onEstimateDrag={startEstimateDrag}
-          onAddMilestone={handleAddMilestone}
-          onAddDeliverable={handleAddDeliverable}
-          onAddApproval={handleAddApproval}
-          onAddEstimate={handleAddEstimate}
-          onLinkClick={linkToGantt}
-          notes={project.notes ?? ''}
-          onNotesUpdate={(val) => projectStore.updateProject(data.id, { notes: val })}
-        />
+      <div class="print-foot" class:no-print={hideLegendPrint}>
+        <div class="legend-wrap"
+             style:height={footerH ? footerH + 'px' : null}
+             style:overflow-y={footerH ? 'auto' : null}>
+          <LegendFooter
+            legend={project.legend}
+            tasks={project.tasks}
+            onUpdate={handleLegendUpdate}
+            onMilestoneDrag={startMilestoneDrag}
+            onApprovalDrag={startApprovalDrag}
+            onEstimateDrag={startEstimateDrag}
+            onAddMilestone={handleAddMilestone}
+            onAddDeliverable={handleAddDeliverable}
+            onAddApproval={handleAddApproval}
+            onAddEstimate={handleAddEstimate}
+            onLinkClick={linkToGantt}
+            notes={project.notes ?? ''}
+            onNotesUpdate={(val) => projectStore.updateProject(data.id, { notes: val })}
+          />
+        </div>
+        <div class="r3a-mark no-screen">R3A</div>
       </div>
     </div>
-
-    <!-- R3A wordmark (print only) -->
-    <div class="r3a-mark no-screen">R3A</div>
 
     <AiSidebar open={aiOpen} project={project} onApplyChanges={handleAiChanges} onClose={() => aiOpen = false} />
 
@@ -987,6 +981,10 @@
   .sch-scroll { width: 100%; height: 100%; overflow: auto; }
   .sch-inner  { display: flex; min-height: 100%; }
 
+  .print-foot {
+    flex-shrink: 0;
+  }
+
   .footer-resizer {
     height: 5px;
     flex-shrink: 0;
@@ -1017,31 +1015,47 @@
   }
 
   @media print {
-    @page { size: letter landscape; margin: 0 0.4in; }
+    @page { size: letter landscape; margin: 0.4in; }
     :root { zoom: var(--print-scale, 1); }
 
     .no-print     { display: none !important; }
     .no-print-border { border-bottom-width: 1.5px !important; }
 
+    /* ── Single-page mode (default): everything on one page, footer at bottom ── */
     .schedule-page {
-      padding-top: 0.4in !important;
-      padding-bottom: 0.4in !important;
-      padding-right: 0 !important;
+      padding: 0 !important;
+      min-height: 100vh !important;
       height: auto !important;
-      overflow: visible !important;
     }
     .sch-hdr { padding: 8px 14px 6px; }
     .hdr-title { font-size: 20px; }
 
-    .sch-body   { overflow: visible !important; height: auto !important; flex: none !important; padding-bottom: 0; }
+    .sch-body {
+      flex: 1 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow: visible !important;
+      height: auto !important;
+    }
     .sch-main   { overflow: visible !important; height: auto !important; flex: none !important; }
     .sch-scroll { overflow: visible !important; width: 100% !important; height: auto !important; }
     .sch-inner  { min-height: unset !important; }
 
+    /* Footer floats to bottom in single-page mode */
+    .print-foot { margin-top: auto; }
+
+    /* ── Multi-page mode: tasks flow freely, footer forced onto its own final page ── */
+    .schedule-page.multi-page .sch-body { flex: none !important; }
+    .schedule-page.multi-page .print-foot {
+      break-before: page !important;
+      margin-top: 0 !important;
+    }
+
     .legend-wrap {
       position: static !important;
-      height: auto !important; overflow: visible !important; background: #fff;
-      margin-top: 0 !important;
+      height: auto !important;
+      overflow: visible !important;
+      background: #fff;
       break-inside: avoid;
     }
 

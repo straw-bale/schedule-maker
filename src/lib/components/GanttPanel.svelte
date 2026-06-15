@@ -508,7 +508,6 @@
   .time-hdr {
     position: sticky; top: 0; z-index: 15;
     background: #fff;
-    border-bottom: 1px solid var(--lgray);
   }
   .year-row { display: flex; height: 18px; border-bottom: 1px solid var(--lgray); }
   .year-block {
@@ -536,6 +535,8 @@
     position: relative;
     height: 22px;
     overflow: visible;
+    border-bottom: 1px solid var(--lgray);
+    box-sizing: border-box;
   }
   .ov-pill {
     position: absolute;
@@ -717,6 +718,7 @@
 
   @media print {
     .time-hdr    { position: relative; z-index: auto; }
+    .gantt-scroll { overflow: hidden !important; }
     .dp          { display: none !important; }
     .gantt-inner { min-height: unset !important; }
   }

@@ -105,13 +105,14 @@
 {/if}
 
 <style>
-  :global(html, body) { margin: 0; padding: 0; background: #fff; overflow: hidden; }
+  :global(html, body) { margin: 0; padding: 0; background: #fff; overflow: hidden; height: 100%; }
 
   .preview-pg {
-    display: inline-flex;
+    display: flex;
     flex-direction: column;
     background: #fff;
     min-width: max-content;
+    min-height: 100vh;
   }
 
   .preview-hdr {
@@ -143,7 +144,7 @@
     font-size: 10.5px; color: #888; text-align: right;
   }
 
-  .preview-body { overflow: visible; }
+  .preview-body { overflow: visible; flex: 1; }
   .preview-inner { display: flex; }
 
   .blocker {
