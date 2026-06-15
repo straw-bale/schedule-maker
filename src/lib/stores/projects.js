@@ -4,6 +4,30 @@ import { supabase } from '$lib/supabase.js';
 
 const { subscribe, update, set } = writable([]);
 
+// Undo history: Map<projectId, snapshot[]>, capped at 50 entries per project.
+const HISTORY_LIMIT = 50;
+const _history = new Map();
+const { subscribe: subscribeHistoryDepth, update: updateHistoryDepth } = writable({});
+
+function _pushHistory(projectId, project) {
+  const stack = _history.get(projectId) ?? [];
+  stack.push(JSON.parse(JSON.stringify(project)));
+  if (stack.length > HISTORY_LIMIT) stack.shift();
+  _history.set(projectId, stack);
+  updateHistoryDepth(d => ({ ...d, [projectId]: stack.length }));
+}
+
+function _popHistory(projectId) {
+  const stack = _history.get(projectId) ?? [];
+  if (!stack.length) return null;
+  const snapshot = stack.pop();
+  _history.set(projectId, stack);
+  updateHistoryDepth(d => ({ ...d, [projectId]: stack.length }));
+  return snapshot;
+}
+
+export const historyDepth = { subscribe: subscribeHistoryDepth };
+
 // Debounced upserts — coalesces rapid updates (e.g. dragging bars).
 const _saveTimers = new Map();
 
@@ -26,6 +50,7 @@ function _updateAndSave(projectId, fn) {
   let saved = null;
   update(ps => ps.map(p => {
     if (p.id !== projectId) return p;
+    _pushHistory(projectId, p);
     saved = fn(p);
     return saved;
   }));
@@ -116,6 +141,13 @@ export const projectStore = {
       );
       return { ...p, legend: { ...p.legend, [section]: items } };
     });
+  },
+
+  undo(projectId) {
+    const snapshot = _popHistory(projectId);
+    if (!snapshot) return;
+    update(ps => ps.map(p => p.id === projectId ? snapshot : p));
+    _saveProject(snapshot);
   },
 
   updateLegendSection(projectId, section, items) {

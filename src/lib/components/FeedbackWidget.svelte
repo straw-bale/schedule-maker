@@ -28,7 +28,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="fb-root" onkeydown={handleKeydown}>
+<div class="fb-root no-print" onkeydown={handleKeydown}>
 
   {#if open}
     <div class="fb-card">
@@ -169,5 +169,4 @@
     letter-spacing: .04em;
   }
 
-  @media print { .fb-root { display: none !important; } }
 </style>

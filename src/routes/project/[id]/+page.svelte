@@ -1,5 +1,5 @@
 ﻿<script>
-  import { projectStore } from '$lib/stores/projects.js';
+  import { projectStore, historyDepth } from '$lib/stores/projects.js';
   import { generateId, parseDate, toISO, MONTHS_SHORT, monthList, totalDays, ZOOM_COL_W, projectDateRange, pxToDateMonth, pxToDatePeriod } from '$lib/utils/dates.js';
   import TaskPanel    from '$lib/components/TaskPanel.svelte';
   import GanttPanel   from '$lib/components/GanttPanel.svelte';
@@ -15,6 +15,24 @@
   let allProjects = $state([]);
   projectStore.subscribe(v => { allProjects = v; });
   let project = $derived(allProjects.find(p => p.id === data.id) ?? null);
+
+  let historyState = $state({});
+  historyDepth.subscribe(v => { historyState = v; });
+  let canUndo = $derived((historyState[data.id] ?? 0) > 0);
+
+  function handleUndo() {
+    projectStore.undo(data.id);
+  }
+
+  function handleKeyDown(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      if (document.activeElement?.isContentEditable ||
+          document.activeElement?.tagName === 'INPUT' ||
+          document.activeElement?.tagName === 'TEXTAREA') return;
+      e.preventDefault();
+      handleUndo();
+    }
+  }
 
   let aiOpen = $state(false);
 
@@ -496,6 +514,8 @@
   }
 </script>
 
+<svelte:window onkeydown={handleKeyDown} />
+
 {#if !project}
   <div class="not-found">
     <p>Project not found.</p>
@@ -551,6 +571,9 @@
       </div>
 
       <div class="hdr-actions no-print">
+        <button class="action-btn action-btn-undo" onclick={handleUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
+          Undo
+        </button>
         <button class="action-btn" onclick={openPrintPanel} title="Print / Export PDF">
           Print
         </button>
@@ -809,6 +832,8 @@
     transition: border-color .12s, background .12s;
   }
   .action-btn:hover { border-color: var(--blue); background: rgba(32,171,226,.05); }
+  .action-btn-undo:disabled { opacity: 0.35; cursor: default; }
+  .action-btn-undo:disabled:hover { border-color: var(--lgray); background: #fff; }
   .action-btn-ai { border-color: var(--blue); color: var(--blue); }
   .action-btn-ai:hover { background: var(--blue); color: #fff; }
   .action-btn-share { transition: border-color .12s, background .12s, color .12s; }

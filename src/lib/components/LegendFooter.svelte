@@ -90,7 +90,15 @@
             class="ms-pill"
             title="Drag to schedule"
             onmousedown={(e) => { if (e.button === 0) { e.preventDefault(); onMilestoneDrag?.(m); } }}
-          >{m.code}</div>
+          >
+            <span
+              contenteditable="true"
+              spellcheck="false"
+              onblur={(e) => onText(e, 'milestones', i, 'code')}
+              onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), e.target.blur())}
+              onmousedown={(e) => e.stopPropagation()}
+            >{m.code}</span>
+          </div>
           <div class="leg-body">
             <div class="leg-line">
               <span
@@ -333,6 +341,12 @@
     user-select: none;
   }
   .ms-pill:active { cursor: grabbing; }
+  .ms-pill span {
+    pointer-events: auto;
+    cursor: text;
+    outline: none;
+    user-select: text;
+  }
 
   /* Color swatch */
   .color-swatch {
