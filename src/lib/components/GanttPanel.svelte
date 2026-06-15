@@ -1,5 +1,5 @@
 <script>
-  import { parseDate, toISO, timeColumns, ZOOM_COL_W, totalDays, dateToPx, isLightColor, MONTHS_SHORT } from '$lib/utils/dates.js';
+  import { parseDate, toISO, timeColumns, ZOOM_COL_W, totalDays, dateToPx, dateToPxMonth, pxToDateMonth, dateToPxPeriod, pxToDatePeriod, isLightColor, MONTHS_SHORT } from '$lib/utils/dates.js';
 
   const ROW_H = 34;
 
@@ -68,7 +68,11 @@
     return groups;
   });
 
-  let todayPx   = $derived(dateToPx(tmStr, viewStart, viewEnd, ganttWidth));
+  let todayPx   = $derived(
+    zoom === 'month'  ? dateToPxMonth(tmStr, viewStart, colW) :
+    zoom === 'biweek' ? dateToPxPeriod(tmStr, viewStart, colW, 14) :
+    zoom === 'week'   ? dateToPxPeriod(tmStr, viewStart, colW, 7) :
+    dateToPx(tmStr, viewStart, viewEnd, ganttWidth));
   let showToday = $derived(showTodayLine && !!tmStr && todayPx >= 0 && todayPx <= ganttWidth);
 
   // Local bar drag state
@@ -100,10 +104,16 @@
   }
 
   function px(dateStr) {
+    if (zoom === 'month')  return dateToPxMonth(dateStr, viewStart, colW);
+    if (zoom === 'biweek') return dateToPxPeriod(dateStr, viewStart, colW, 14);
+    if (zoom === 'week')   return dateToPxPeriod(dateStr, viewStart, colW, 7);
     return dateToPx(dateStr, viewStart, viewEnd, ganttWidth);
   }
 
   function pxToDate(xPx) {
+    if (zoom === 'month')  return pxToDateMonth(xPx, viewStart, colW);
+    if (zoom === 'biweek') return pxToDatePeriod(xPx, viewStart, colW, 14);
+    if (zoom === 'week')   return pxToDatePeriod(xPx, viewStart, colW, 7);
     const totalMs = viewEnd.getTime() - viewStart.getTime();
     const ms = viewStart.getTime() + (xPx / ganttWidth) * totalMs;
     const d = new Date(ms);

@@ -42,6 +42,47 @@ export function dateToPx(dateStr, viewStart, viewEnd, ganttWidth) {
   return ((d - viewStart) / (totalDays(viewStart, viewEnd) * 864e5)) * ganttWidth;
 }
 
+/**
+ * Month-zoom variant: each month column is colW px wide regardless of day count.
+ * viewStart must be the first day of a month (as produced by timeColumns).
+ */
+export function dateToPxMonth(dateStr, viewStart, colW) {
+  const d = parseDate(dateStr);
+  if (!d) return 0;
+  const monthOffset = (d.getFullYear() - viewStart.getFullYear()) * 12 + (d.getMonth() - viewStart.getMonth());
+  const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  const dayFraction = (d.getDate() - 1) / daysInMonth;
+  return (monthOffset + dayFraction) * colW;
+}
+
+/** Inverse of dateToPxMonth */
+export function pxToDateMonth(xPx, viewStart, colW) {
+  const raw = xPx / colW;
+  const wholeMonths = Math.floor(raw);
+  const fraction    = raw - wholeMonths;
+  const base = new Date(viewStart.getFullYear(), viewStart.getMonth() + wholeMonths, 1);
+  const daysInMonth = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+  const day = Math.min(Math.round(fraction * daysInMonth) + 1, daysInMonth);
+  return toISO(new Date(base.getFullYear(), base.getMonth(), day));
+}
+
+/**
+ * Week/biweek zoom: each column is exactly `periodDays` days wide = colW px.
+ * This is exact because all columns have the same day count.
+ */
+export function dateToPxPeriod(dateStr, viewStart, colW, periodDays) {
+  const d = parseDate(dateStr);
+  if (!d) return 0;
+  return ((d - viewStart) / (periodDays * 864e5)) * colW;
+}
+
+/** Inverse of dateToPxPeriod */
+export function pxToDatePeriod(xPx, viewStart, colW, periodDays) {
+  const ms = viewStart.getTime() + (xPx / colW) * periodDays * 864e5;
+  const d  = new Date(ms);
+  return toISO(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+}
+
 /** True if hex colour is light enough to need dark text */
 export function isLightColor(hex) {
   if (!hex || hex.length < 7) return false;

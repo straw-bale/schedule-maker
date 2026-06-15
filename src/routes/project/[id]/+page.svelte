@@ -1,6 +1,6 @@
 ﻿<script>
   import { projectStore } from '$lib/stores/projects.js';
-  import { generateId, parseDate, toISO, MONTHS_SHORT, monthList, totalDays, ZOOM_COL_W, projectDateRange } from '$lib/utils/dates.js';
+  import { generateId, parseDate, toISO, MONTHS_SHORT, monthList, totalDays, ZOOM_COL_W, projectDateRange, pxToDateMonth, pxToDatePeriod } from '$lib/utils/dates.js';
   import TaskPanel    from '$lib/components/TaskPanel.svelte';
   import GanttPanel   from '$lib/components/GanttPanel.svelte';
   import LegendFooter from '$lib/components/LegendFooter.svelte';
@@ -45,9 +45,13 @@
     const rect = schScrollEl.getBoundingClientRect();
     const relX  = clientX - rect.left - TASK_COL_W + schScrollEl.scrollLeft;
     const vs    = parseDate(project.viewStart);
-    const ve    = parseDate(project.viewEnd);
-    const ms    = vs.getTime() + (relX / ganttWidth) * (ve - vs);
-    const d     = new Date(ms);
+    if (displayZoom === 'month')  return pxToDateMonth(relX, vs, effectiveColW);
+    if (displayZoom === 'biweek') return pxToDatePeriod(relX, vs, effectiveColW, 14);
+    if (displayZoom === 'week')   return pxToDatePeriod(relX, vs, effectiveColW, 7);
+    // fallback (should not be reached with current zoom options)
+    const ve = parseDate(project.viewEnd);
+    const ms = vs.getTime() + (relX / ganttWidth) * (ve - vs);
+    const d  = new Date(ms);
     return toISO(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
   }
 
@@ -353,6 +357,17 @@
   let printPanelOpen = $state(false);
   let hideLegendPrint = $state(false);
 
+  let shareCopied = $state(false);
+  let shareCopiedTimer = null;
+  function shareProject() {
+    const url = `${window.location.origin}/share/${data.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      shareCopied = true;
+      clearTimeout(shareCopiedTimer);
+      shareCopiedTimer = setTimeout(() => { shareCopied = false; }, 2000);
+    });
+  }
+
   let footerH = $state(null); // null = auto height
 
   function startFooterResize(e) {
@@ -538,6 +553,9 @@
       <div class="hdr-actions no-print">
         <button class="action-btn" onclick={openPrintPanel} title="Print / Export PDF">
           Print
+        </button>
+        <button class="action-btn action-btn-share" onclick={shareProject} title="Copy shareable link">
+          {shareCopied ? 'Copied!' : 'Share'}
         </button>
         <button class="action-btn action-btn-ai" onclick={() => aiOpen = !aiOpen} title="AI Schedule Assistant">
           AI
@@ -793,6 +811,8 @@
   .action-btn:hover { border-color: var(--blue); background: rgba(32,171,226,.05); }
   .action-btn-ai { border-color: var(--blue); color: var(--blue); }
   .action-btn-ai:hover { background: var(--blue); color: #fff; }
+  .action-btn-share { transition: border-color .12s, background .12s, color .12s; }
+  .action-btn-share:hover { border-color: var(--black); background: var(--black); color: #fff; }
 
   /* Timeline control strip */
   .timeline-bar {
