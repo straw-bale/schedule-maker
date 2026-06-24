@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import TaskPanel    from '$lib/components/TaskPanel.svelte';
   import GanttPanel   from '$lib/components/GanttPanel.svelte';
   import LegendFooter from '$lib/components/LegendFooter.svelte';
@@ -7,22 +7,28 @@
 
   let { data } = $props();
 
-  const COL_W      = 72;
   const TASK_COL_W = 252;
   const USABLE_W   = { letter: 979, tabloid: 1555 };
 
   let project    = $state(null);
-  let showToday  = $state(true);
-  let showLegend = $state(true);
+  let showToday  = $state(data.autoprint ? data.showToday  : true);
+  let showLegend = $state(data.autoprint ? data.showLegend : true);
 
   let ganttMonths = $derived(project
     ? monthList(parseDate(project.viewStart), parseDate(project.viewEnd))
     : []);
-  let contentW = $derived(TASK_COL_W + ganttMonths.length * COL_W);
+
+  // Fit columns to the usable paper width — only changes column width, not row height,
+  // so content never overflows vertically onto an extra page.
+  let usableW  = $derived(USABLE_W[data.paper] ?? 979);
+  let colW     = $derived(ganttMonths.length > 0
+    ? Math.max(20, Math.floor((usableW - TASK_COL_W) / ganttMonths.length))
+    : 72);
+  let contentW = $derived(TASK_COL_W + ganttMonths.length * colW);
 
   const noop = () => {};
 
-  onMount(() => {
+  onMount(async () => {
     const raw = sessionStorage.getItem('r3a_preview');
     if (raw) {
       try { project = JSON.parse(raw); } catch {}
@@ -31,32 +37,35 @@
       if (typeof e.data?.showToday  === 'boolean') showToday  = e.data.showToday;
       if (typeof e.data?.showLegend === 'boolean') showLegend = e.data.showLegend;
     });
+
+    if (data.autoprint) {
+      if (data.title) document.title = data.title;
+      await tick();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        window.print();
+        window.close();
+      }));
+    }
   });
 
-  $effect(() => {
-    if (!project) return;
-    const usableW = USABLE_W[data.paper] ?? 979;
-    const scale   = Math.min(1, usableW / contentW);
-    document.documentElement.style.zoom = scale.toFixed(4);
-    return () => { document.documentElement.style.zoom = ''; };
-  });
 </script>
 
 {#if project}
   <div class="preview-pg">
 
     <header class="preview-hdr">
-      <div class="preview-left">
-        <div class="preview-title">{project.title || 'Project Title'}</div>
-        {#if project.subtitle}
-          <div class="preview-sub">{project.subtitle}</div>
-        {/if}
-      </div>
-      <div class="preview-meta">
-        {#each [project.date, project.number, project.client].filter(Boolean) as v}
-          <div class="preview-meta-item">{v}</div>
-        {/each}
-      </div>
+      <div class="preview-title">{project.title || 'Project Title'}</div>
+      {#if project.subtitle}
+        <div class="preview-sub">{project.subtitle}</div>
+      {/if}
+      {#if project.date || project.number || project.client}
+        <div class="preview-meta">
+          {#each [project.date, project.number, project.client].filter(Boolean) as v, i}
+            {#if i > 0}<span class="meta-sep">·</span>{/if}
+            <span class="meta-item">{v}</span>
+          {/each}
+        </div>
+      {/if}
     </header>
 
     <div class="preview-body">
@@ -82,6 +91,7 @@
           onLegendItemUpdate={noop}
           onDraggingChange={noop}
           zoom="month"
+          colWOverride={colW}
           showTodayLine={showToday}
         />
       </div>
@@ -116,9 +126,6 @@
   }
 
   .preview-hdr {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
     padding: 10px 18px 8px;
     border-bottom: 2px solid var(--black);
     background: #fff;
@@ -137,11 +144,15 @@
     color: #aaa; margin-top: 2px;
   }
   .preview-meta {
-    display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+    display: flex; flex-direction: row; align-items: center;
+    flex-wrap: wrap; gap: 0; margin-top: 5px;
   }
-  .preview-meta-item {
+  .meta-item {
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10.5px; color: #888; text-align: right;
+    font-size: 10.5px; color: #999;
+  }
+  .meta-sep {
+    font-size: 9px; color: #ccc; padding: 0 5px; user-select: none;
   }
 
   .preview-body { overflow: visible; flex: 1; }
@@ -157,5 +168,11 @@
     height: 300px;
     font-family: 'Barlow Condensed', sans-serif;
     font-size: 13px; color: #aaa;
+  }
+
+  @media print {
+    :global(html, body) { overflow: visible !important; height: auto !important; }
+    .blocker { display: none !important; }
+    .preview-pg { min-height: 0 !important; }
   }
 </style>

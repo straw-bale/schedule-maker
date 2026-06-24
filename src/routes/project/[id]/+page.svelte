@@ -7,7 +7,6 @@
   import AiSidebar    from '$lib/components/AiSidebar.svelte';
   import PrintPanel   from '$lib/components/PrintPanel.svelte';
   import { goto } from '$app/navigation';
-  import { tick } from 'svelte';
 
   let { data } = $props();
 
@@ -452,61 +451,24 @@
     printPanelOpen = true;
   }
 
-  async function printSchedule({ showToday = true, showLegend = true, paper = 'tabloid' } = {}) {
-    printPanelOpen  = false;
-    const prevZoom  = zoom;
-    const prevToday = showTodayLine;
-    const prevAi    = aiOpen;
-    const prevTitle = document.title;
+  function printSchedule({ showToday = true, showLegend = true, paper = 'tabloid' } = {}) {
+    printPanelOpen = false;
+    if (project) sessionStorage.setItem('r3a_preview', JSON.stringify(project));
 
-    zoom          = 'month';
-    showTodayLine = showToday;
-    hideLegendPrint = !showLegend;
-    aiOpen        = false;
-
-    const paperUsableW = paper === 'tabloid' ? 1555 : 979;
-    const paperUsableH = paper === 'tabloid' ? 979  : 739;
-
-    // Set columns to fit paper width — use floor so total never exceeds page width
-    if (ganttMonths.length > 0) {
-      printColW = Math.max(20, Math.floor((paperUsableW - TASK_COL_W) / ganttMonths.length));
-    }
-    await tick();
-
-    // Detect vertical overflow: if tasks + footer exceed one page → multi-page mode.
-    // Add 40px for the R3A mark (display:none on screen, shown in print).
-    const hdrH  = document.querySelector('.sch-hdr')?.offsetHeight ?? 64;
-    const footH = showLegend ? (document.querySelector('.legend-wrap')?.offsetHeight ?? 150) + 40 : 0;
-    const rowsH = (project?.tasks?.length ?? 0) * 34;
-    printMultiPage = (hdrH + 68 + rowsH + footH) > paperUsableH;
-
-    document.documentElement.style.setProperty('--print-scale', '1');
-
-    // Filename: [number]_[YYYYMMDD]_Project Schedule
     const today    = new Date();
     const yyyymmdd = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
     const num      = project?.number?.trim();
-    document.title = [num, yyyymmdd, 'Project Schedule'].filter(Boolean).join('_');
+    const title    = [num, yyyymmdd, 'Project Schedule'].filter(Boolean).join('_');
 
-    // margin: 0 on top/bottom suppresses the browser's native URL and date headers
-    const pageStyle = document.createElement('style');
-    pageStyle.id    = '__r3a_page';
-    const paperName = paper === 'tabloid' ? 'tabloid' : 'letter';
-    pageStyle.textContent = `@page { size: ${paperName} landscape; margin: 0.4in; }`;
-    document.head.appendChild(pageStyle);
+    const params = new URLSearchParams({
+      paper,
+      autoprint: '1',
+      today:  showToday  ? '1' : '0',
+      legend: showLegend ? '1' : '0',
+      title,
+    });
 
-    window.print();
-
-    document.getElementById('__r3a_page')?.remove();
-
-    document.documentElement.style.removeProperty('--print-scale');
-    document.title   = prevTitle;
-    printColW        = null;
-    printMultiPage   = false;
-    zoom             = prevZoom;
-    showTodayLine    = prevToday;
-    hideLegendPrint  = false;
-    aiOpen           = prevAi;
+    window.open(`/print-preview?${params}`, '_blank');
   }
 </script>
 
@@ -1024,8 +986,7 @@
     /* ── Single-page mode (default): everything on one page, footer at bottom ── */
     .schedule-page {
       padding: 0 !important;
-      min-height: 100vh !important;
-      height: auto !important;
+      height: 100vh !important;   /* definite height so flex: 1 on sch-body actually expands */
     }
     .sch-hdr { padding: 8px 14px 6px; }
     .hdr-title { font-size: 20px; }
@@ -1045,6 +1006,7 @@
     .print-foot { margin-top: auto; }
 
     /* ── Multi-page mode: tasks flow freely, footer forced onto its own final page ── */
+    .schedule-page.multi-page { height: auto !important; }
     .schedule-page.multi-page .sch-body { flex: none !important; }
     .schedule-page.multi-page .print-foot {
       break-before: page !important;

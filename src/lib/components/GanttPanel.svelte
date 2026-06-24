@@ -32,7 +32,8 @@
 
   const BAR_COLORS = [
     { hex: '#282829', label: 'Black — Programming / Bidding / Closeout' },
-    { hex: '#00914D', label: 'Lime — Design phases (SD, DD, CDs)'       },
+    { hex: '#8B9A3A', label: 'Olive — Design phases (SD, DD, CDs)'      },
+    { hex: '#00914D', label: 'Lime'                                      },
     { hex: '#20ABE2', label: 'Blue — Client / Owner Review'             },
     { hex: '#6D245D', label: 'Berry — Construction & CA'                },
     { hex: '#D83968', label: 'Magenta — Permit / AHJ'                   },
