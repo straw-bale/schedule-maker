@@ -1,6 +1,6 @@
 ﻿<script>
   import { projectStore, historyDepth } from '$lib/stores/projects.js';
-  import { generateId, parseDate, toISO, MONTHS_SHORT, monthList, totalDays, ZOOM_COL_W, projectDateRange, pxToDateMonth, pxToDatePeriod } from '$lib/utils/dates.js';
+  import { generateId, parseDate, toISO, MONTHS_SHORT, monthList, totalDays, ZOOM_COL_W, projectDateRange, pxToDateMonth, pxToDatePeriod, toWeekday } from '$lib/utils/dates.js';
   import TaskPanel    from '$lib/components/TaskPanel.svelte';
   import GanttPanel   from '$lib/components/GanttPanel.svelte';
   import LegendFooter from '$lib/components/LegendFooter.svelte';
@@ -57,7 +57,13 @@
   let ganttWidth  = $derived(ganttMonths.length * effectiveColW);
   let displayZoom = $derived(zoom === 'fit' ? 'month' : zoom);
 
+  // Drop targets snap off weekends so the indicator shows the date that will be saved
   function xToDate(clientX) {
+    const iso = xToRawDate(clientX);
+    return iso && toWeekday(iso);
+  }
+
+  function xToRawDate(clientX) {
     if (!schScrollEl || !project) return null;
     const rect = schScrollEl.getBoundingClientRect();
     const relX  = clientX - rect.left - TASK_COL_W + schScrollEl.scrollLeft;
@@ -284,7 +290,7 @@
   function handleAddEstimate(e) {
     if (!project) return;
     const n   = (project.legend.estimates?.length ?? 0) + 1;
-    const est = { code: `E${n}`, text: 'New Estimate', color: '#8B9A3A' };
+    const est = { code: `E${n}`, text: 'New Estimate', color: '#00914D' };
     startStickyDrag(makeEstimateGhost(est), e.clientX, e.clientY, (date) => {
       projectStore.updateLegendSection(data.id, 'estimates', [
         ...(project.legend.estimates ?? []),
@@ -300,7 +306,7 @@
     highlightTaskId = task.id;
     // Scroll the row into view (task panel list)
     const idx = project.tasks.indexOf(task);
-    if (schScrollEl) schScrollEl.scrollTop = idx * 34;
+    if (schScrollEl) schScrollEl.scrollTop = idx * 26;
     setTimeout(() => { highlightTaskId = null; }, 1800);
   }
 
@@ -369,7 +375,7 @@
   let reorderDraggingId  = $state(null);
   let reorderInsertIdx   = $state(null);
 
-  let zoom            = $state('month');
+  let zoom            = $state('fit');
   let showTodayLine   = $state(true);
   let printPanelOpen  = $state(false);
   let hideLegendPrint = $state(false);

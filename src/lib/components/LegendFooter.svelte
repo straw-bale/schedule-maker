@@ -1,4 +1,7 @@
 <script>
+  import { tick } from 'svelte';
+  import { toWeekday } from '$lib/utils/dates.js';
+
   let { legend, tasks = [], onUpdate, onMilestoneDrag, onApprovalDrag, onEstimateDrag, onAddMilestone, onAddDeliverable, onAddApproval, onAddEstimate, onLinkClick, notes = '', onNotesUpdate = null } = $props();
 
   function emit(section, items) {
@@ -20,7 +23,44 @@
     updateField(section, idx, 'color', e.target.value);
   }
   function onDate(e, section, idx) {
-    updateField(section, idx, 'date', e.target.value || null);
+    const date = toWeekday(e.target.value) || null;
+    if (date) e.target.value = date;
+    updateField(section, idx, 'date', date);
+  }
+
+  // Notes are stored as one string, one note per line, and shown as a numbered list.
+  let noteItems = $derived(notes.split('\n').map(n => n.trim()).filter(Boolean));
+  let draftNote = $state(false);  // an empty row being typed into (blank notes aren't saved)
+  let notesEl   = $state(null);
+
+  function saveNotes(items) {
+    onNotesUpdate?.(items.map(n => n.trim()).filter(Boolean).join('\n'));
+  }
+  function onNoteBlur(e, idx) {
+    const items = [...noteItems];
+    items[idx] = e.target.textContent;
+    saveNotes(items);
+  }
+  function onDraftBlur(e) {
+    saveNotes([...noteItems, e.target.textContent]);
+    e.target.textContent = '';
+    draftNote = false;
+  }
+  // Enter commits the note; on the last note it also starts a new one
+  function onNoteKey(e, isLast) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const hasText = !!e.target.textContent.trim();
+    e.target.blur();
+    if (isLast && hasText) addNote();
+  }
+  async function addNote() {
+    draftNote = true;
+    await tick();
+    notesEl?.querySelector('.note-draft')?.focus();
+  }
+  function removeNote(idx) {
+    saveNotes(noteItems.filter((_, i) => i !== idx));
   }
 
   function fmtDate(iso) {
@@ -172,9 +212,9 @@
     </div>
   </div>
 
-  <!-- AHJ Approvals -->
+  <!-- Approvals -->
   <div class="leg-col">
-    <div class="leg-hdr">AHJ Approvals</div>
+    <div class="leg-hdr">Approvals</div>
     <div class="leg-items">
       {#each legend.approvals as a, i}
         <div class="leg-row">
@@ -215,15 +255,43 @@
   </div>
 
   <!-- Notes -->
-  <div class="leg-col">
+  <div class="leg-col leg-col-notes">
     <div class="leg-hdr">Notes</div>
-    <div class="leg-items">
-      <textarea
-        class="notes-area"
-        spellcheck="false"
-        placeholder="Add notes…"
-        onblur={(e) => onNotesUpdate?.(e.target.value)}
-      >{notes}</textarea>
+    <div class="leg-items" bind:this={notesEl}>
+      {#each noteItems as n, i (i + ':' + n)}
+        <div class="leg-row note-row">
+          <span class="note-num">{i + 1}.</span>
+          <span
+            class="leg-field note-txt"
+            role="textbox"
+            tabindex="0"
+            contenteditable={!!onNotesUpdate}
+            spellcheck="false"
+            onblur={(e) => onNoteBlur(e, i)}
+            onkeydown={(e) => onNoteKey(e, i === noteItems.length - 1)}
+          >{n}</span>
+          {#if onNotesUpdate}
+            <button class="leg-del" onclick={() => removeNote(i)}>✕</button>
+          {/if}
+        </div>
+      {/each}
+      {#if draftNote}
+        <div class="leg-row note-row">
+          <span class="note-num">{noteItems.length + 1}.</span>
+          <span
+            class="leg-field note-txt note-draft"
+            role="textbox"
+            tabindex="0"
+            contenteditable="true"
+            spellcheck="false"
+            onblur={onDraftBlur}
+            onkeydown={(e) => onNoteKey(e, true)}
+          ></span>
+        </div>
+      {/if}
+      {#if onNotesUpdate}
+        <button type="button" class="leg-add" onclick={addNote}>+ Add</button>
+      {/if}
     </div>
   </div>
 
@@ -237,13 +305,14 @@
   }
   .leg-col {
     flex: 1;
-    border-right: 1px solid var(--lgray);
+    border-right: 1px solid var(--black);
     overflow: hidden;
     min-width: 0;
     display: flex;
     flex-direction: column;
   }
   .leg-col:last-child { border-right: none; }
+  .leg-col-notes { flex: 2; }
   .leg-hdr {
     background: var(--black);
     color: #fff;
@@ -262,22 +331,12 @@
     color: #ccc;
     font-style: italic;
   }
-  .notes-area {
-    width: 100%;
-    height: 100%;
-    min-height: 60px;
-    border: none;
-    outline: none;
-    resize: none;
-    font-family: 'Barlow', sans-serif;
-    font-size: 11px;
-    color: var(--black);
-    line-height: 1.5;
-    background: transparent;
-    padding: 0;
-    box-sizing: border-box;
+  .note-row { gap: 4px; margin-bottom: 3px; }
+  .note-num {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 12px;
+    color: var(--black); min-width: 14px; flex-shrink: 0;
   }
-  .notes-area::placeholder { color: #ccc; }
+  .note-txt { flex: 1; min-width: 0; white-space: normal; }
 
   /* Row */
   .leg-row {
@@ -398,7 +457,7 @@
     outline: none;
     font-family: 'Barlow Condensed', sans-serif;
     font-size: 10.5px;
-    color: #888;
+    color: var(--black);
     background: transparent;
     padding: 1px 2px;
     cursor: pointer;
@@ -448,7 +507,7 @@
   }
   .leg-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .leg-name:focus { overflow: visible; white-space: normal; }
-  .leg-date { color: #888; flex-shrink: 0; font-size: 11px; white-space: nowrap; }
+  .leg-date { color: var(--black); flex-shrink: 0; font-size: 11px; white-space: nowrap; }
 
   /* Delete */
   .leg-del {
@@ -498,6 +557,6 @@
   .date-print {
     font-family: 'Barlow Condensed', sans-serif;
     font-size: 10.5px;
-    color: #888;
+    color: var(--black);
   }
 </style>

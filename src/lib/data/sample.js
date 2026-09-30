@@ -1,4 +1,4 @@
-import { generateId, toISO } from '$lib/utils/dates.js';
+import { generateId, toISO, toWeekday } from '$lib/utils/dates.js';
 
 // Add N weeks to a Date, returning a new Date
 function w(date, n) {
@@ -10,6 +10,23 @@ function w(date, n) {
 // First day of month N months after date
 function mEnd(date, n = 2) {
   return new Date(date.getFullYear(), date.getMonth() + n, 1);
+}
+
+// FF&E package: spec runs DD through CDs, the PO is approved ~16 weeks before
+// install (but no sooner than 2 weeks after CDs), procurement fills the lead time,
+// and installation takes the last 4 weeks of construction.
+function ffe(specStart, cdEnd, conEnd, firstId) {
+  const instS = w(conEnd, -4);
+  const po    = new Date(Math.max(w(cdEnd, 2), w(instS, -16)));
+  const poISO = toWeekday(toISO(po));
+  return {
+    tasks: [
+      { id:firstId,     name:'FF&E Design & Specification',  type:'bar', color:'#00914D', start: toISO(specStart), end: toISO(cdEnd) },
+      { id:firstId + 1, name:'FF&E Lead Time & Procurement', type:'bar', color:'#282829', start: poISO,            end: toISO(instS) },
+      { id:firstId + 2, name:'FF&E Installation',            type:'bar', color:'#6D245D', start: toISO(instS),     end: toISO(conEnd) },
+    ],
+    approval: { text:'FF&E Purchase Order', date: poISO },
+  };
 }
 
 export function createSampleProject() {
@@ -27,6 +44,7 @@ export function createSampleProject() {
   const conS  = pmRvE,         conE  = w(conS, 26);    // Construction
   const clS   = w(conE, -6),   clE   = w(clS, 8);      // Closeout overlaps end of construction
   const occ   = conE;
+  const ff    = ffe(ddS, cdE, conE, 14);
 
   return {
     id: generateId(),
@@ -38,20 +56,21 @@ export function createSampleProject() {
     viewStart:  toISO(new Date(base.getFullYear(), base.getMonth() - 1, 1)),
     viewEnd:    toISO(mEnd(occ, 1)),
     todayMark:  toISO(new Date()),
-    nextTaskId: 14,
+    nextTaskId: 17,
     tasks: [
       { id:1,  name:'Project Kick-Off',              type:'milestone', date: toISO(base) },
-      { id:2,  name:'Programming',                   type:'bar', color:'#8B9A3A', start: toISO(prS),   end: toISO(prE) },
-      { id:3,  name:'Schematic Design',              type:'bar', color:'#8B9A3A', start: toISO(sdS),   end: toISO(sdE) },
-      { id:4,  name:'SD Client Review',              type:'bar', color:'#20ABE2', start: toISO(r1S),   end: toISO(r1E) },
-      { id:5,  name:'Design Development',            type:'bar', color:'#8B9A3A', start: toISO(ddS),   end: toISO(ddE) },
-      { id:6,  name:'DD Client Review',              type:'bar', color:'#20ABE2', start: toISO(r2S),   end: toISO(r2E) },
-      { id:7,  name:'Construction Documents',        type:'bar', color:'#8B9A3A', start: toISO(cdS),   end: toISO(cdE) },
+      { id:2,  name:'Programming',                   type:'bar', color:'#00914D', start: toISO(prS),   end: toISO(prE) },
+      { id:3,  name:'Schematic Design',              type:'bar', color:'#00914D', start: toISO(sdS),   end: toISO(sdE) },
+      { id:4,  name:'SD Client Review',              type:'bar', color:'#949494', start: toISO(r1S),   end: toISO(r1E) },
+      { id:5,  name:'Design Development',            type:'bar', color:'#00914D', start: toISO(ddS),   end: toISO(ddE) },
+      { id:6,  name:'DD Client Review',              type:'bar', color:'#949494', start: toISO(r2S),   end: toISO(r2E) },
+      { id:7,  name:'Construction Documents',        type:'bar', color:'#00914D', start: toISO(cdS),   end: toISO(cdE) },
       { id:8,  name:'Permit Submission',             type:'milestone', date: toISO(pmSub) },
       { id:9,  name:'Permit Review',                 type:'bar', color:'#D83968', start: toISO(pmRvS), end: toISO(pmRvE) },
       { id:10, name:'Bidding & Procurement',         type:'bar', color:'#282829', start: toISO(bidS),  end: toISO(bidE) },
       { id:11, name:'Construction',                  type:'bar', color:'#6D245D', start: toISO(conS),  end: toISO(conE),
         isEstimate: true, label: 'Estimated 26 Week Construction Period' },
+      ...ff.tasks,
       { id:12, name:'As-Built / Closeout Documents', type:'bar', color:'#282829', start: toISO(clS),   end: toISO(clE) },
       { id:13, name:'Project Occupancy',             type:'milestone', date: toISO(occ), label: 'Beneficial Occupancy' },
     ],
@@ -68,10 +87,10 @@ export function createSampleProject() {
         { color:'#20ABE2', code:'OC', text:'Project Occupancy / Beneficial Occupancy', date: toISO(occ)  },
       ],
       estimates: [
-        { color:'#8B9A3A', code:'SD', text:'Schematic Design',      date: toISO(sdE) },
-        { color:'#8B9A3A', code:'DD', text:'Design Development',     date: toISO(ddE) },
+        { color:'#00914D', code:'SD', text:'Schematic Design',      date: toISO(sdE) },
+        { color:'#00914D', code:'DD', text:'Design Development',     date: toISO(ddE) },
       ],
-      approvals: [{ text:'Building Permit Approval', date: toISO(pmRvE) }],
+      approvals: [{ text:'Building Permit Approval', date: toISO(pmRvE) }, ff.approval],
     },
   };
 }
@@ -117,6 +136,7 @@ export function createSmallTemplate() {
   const occ   = clE;
   const pmSub  = cdE;
   const pmRvE  = conS;
+  const ff     = ffe(ddS, cdE, conE, 15);
 
   return {
     id: generateId(),
@@ -126,20 +146,21 @@ export function createSmallTemplate() {
     viewStart:  toISO(new Date(base.getFullYear(), base.getMonth() - 1, 1)),
     viewEnd:    toISO(mEnd(occ, 1)),
     todayMark:  toISO(new Date()),
-    nextTaskId: 15,
+    nextTaskId: 18,
     tasks: [
       { id:1,  name:'Project Kick-Off',         type:'milestone', date: toISO(base) },
-      { id:2,  name:'Programming',              type:'bar', color:'#8B9A3A', start: toISO(prS),  end: toISO(prE) },
-      { id:3,  name:'Schematic Design',         type:'bar', color:'#8B9A3A', start: toISO(sdS),  end: toISO(sdE) },
-      { id:4,  name:'Design Development',       type:'bar', color:'#8B9A3A', start: toISO(ddS),  end: toISO(ddE) },
-      { id:5,  name:'DD Client Review',         type:'bar', color:'#20ABE2', start: toISO(ddrS), end: toISO(ddrE) },
-      { id:6,  name:'Construction Documents',   type:'bar', color:'#8B9A3A', start: toISO(cdS),  end: toISO(cdE) },
-      { id:7,  name:'CD Client Review',         type:'bar', color:'#20ABE2', start: toISO(cdrS), end: toISO(cdrE) },
+      { id:2,  name:'Programming',              type:'bar', color:'#00914D', start: toISO(prS),  end: toISO(prE) },
+      { id:3,  name:'Schematic Design',         type:'bar', color:'#00914D', start: toISO(sdS),  end: toISO(sdE) },
+      { id:4,  name:'Design Development',       type:'bar', color:'#00914D', start: toISO(ddS),  end: toISO(ddE) },
+      { id:5,  name:'DD Client Review',         type:'bar', color:'#949494', start: toISO(ddrS), end: toISO(ddrE) },
+      { id:6,  name:'Construction Documents',   type:'bar', color:'#00914D', start: toISO(cdS),  end: toISO(cdE) },
+      { id:7,  name:'CD Client Review',         type:'bar', color:'#949494', start: toISO(cdrS), end: toISO(cdrE) },
       { id:12, name:'Permit Submission',        type:'milestone', date: toISO(pmSub) },
       { id:13, name:'Permit Review',            type:'bar', color:'#D83968', start: toISO(pmSub), end: toISO(pmRvE) },
       { id:8,  name:'Bidding & Procurement',    type:'bar', color:'#282829', start: toISO(bidS), end: toISO(bidE) },
       { id:9,  name:'Construction',             type:'bar', color:'#6D245D', start: toISO(conS), end: toISO(conE),
         isEstimate: true, label: 'Estimated Construction Period' },
+      ...ff.tasks,
       { id:10, name:'As-Built / Closeout',      type:'bar', color:'#282829', start: toISO(clS),  end: toISO(clE) },
       { id:11, name:'Project Occupancy',        type:'milestone', date: toISO(occ) },
     ],
@@ -156,10 +177,10 @@ export function createSmallTemplate() {
         { color:'#20ABE2', code:'OC', text:'Project Occupancy / Beneficial Occupancy', date: toISO(occ)  },
       ],
       estimates: [
-        { color:'#8B9A3A', code:'SD', text:'Schematic Design',      date: toISO(sdE) },
-        { color:'#8B9A3A', code:'DD', text:'Design Development',     date: toISO(ddE) },
+        { color:'#00914D', code:'SD', text:'Schematic Design',      date: toISO(sdE) },
+        { color:'#00914D', code:'DD', text:'Design Development',     date: toISO(ddE) },
       ],
-      approvals: [{ text:'Building Permit Approval', date: toISO(pmRvE) }],
+      approvals: [{ text:'Building Permit Approval', date: toISO(pmRvE) }, ff.approval],
     },
   };
 }
@@ -185,6 +206,7 @@ export function createMediumTemplate() {
   const occ   = clE;
   const pmSub  = fcdE;
   const pmRvE  = conS;
+  const ff     = ffe(d50S, fcdE, conE, 18);
 
   return {
     id: generateId(),
@@ -194,23 +216,24 @@ export function createMediumTemplate() {
     viewStart:  toISO(new Date(base.getFullYear(), base.getMonth() - 1, 1)),
     viewEnd:    toISO(mEnd(occ, 1)),
     todayMark:  toISO(new Date()),
-    nextTaskId: 18,
+    nextTaskId: 21,
     tasks: [
       { id:1,  name:'Project Kick-Off',              type:'milestone', date: toISO(base) },
-      { id:2,  name:'Programming',                   type:'bar', color:'#8B9A3A', start: toISO(prS),   end: toISO(prE) },
-      { id:3,  name:'Schematic Design',              type:'bar', color:'#8B9A3A', start: toISO(sdS),   end: toISO(sdE) },
-      { id:4,  name:'SD Client Review',              type:'bar', color:'#20ABE2', start: toISO(r1S),   end: toISO(r1E) },
-      { id:5,  name:'50% Design Development',        type:'bar', color:'#8B9A3A', start: toISO(d50S),  end: toISO(d50E) },
-      { id:6,  name:'50% Design Review',             type:'bar', color:'#20ABE2', start: toISO(r2S),   end: toISO(r2E) },
-      { id:7,  name:'95% Construction Documents',    type:'bar', color:'#8B9A3A', start: toISO(d95S),  end: toISO(d95E) },
-      { id:8,  name:'95% Design Review',             type:'bar', color:'#20ABE2', start: toISO(r3S),   end: toISO(r3E) },
-      { id:9,  name:'100% Construction Documents',   type:'bar', color:'#8B9A3A', start: toISO(d100S), end: toISO(d100E) },
-      { id:10, name:'Final Construction Documents',  type:'bar', color:'#8B9A3A', start: toISO(fcdS),  end: toISO(fcdE) },
+      { id:2,  name:'Programming',                   type:'bar', color:'#00914D', start: toISO(prS),   end: toISO(prE) },
+      { id:3,  name:'Schematic Design',              type:'bar', color:'#00914D', start: toISO(sdS),   end: toISO(sdE) },
+      { id:4,  name:'SD Client Review',              type:'bar', color:'#949494', start: toISO(r1S),   end: toISO(r1E) },
+      { id:5,  name:'50% Design Development',        type:'bar', color:'#00914D', start: toISO(d50S),  end: toISO(d50E) },
+      { id:6,  name:'50% Design Review',             type:'bar', color:'#949494', start: toISO(r2S),   end: toISO(r2E) },
+      { id:7,  name:'95% Construction Documents',    type:'bar', color:'#00914D', start: toISO(d95S),  end: toISO(d95E) },
+      { id:8,  name:'95% Design Review',             type:'bar', color:'#949494', start: toISO(r3S),   end: toISO(r3E) },
+      { id:9,  name:'100% Construction Documents',   type:'bar', color:'#00914D', start: toISO(d100S), end: toISO(d100E) },
+      { id:10, name:'Final Construction Documents',  type:'bar', color:'#00914D', start: toISO(fcdS),  end: toISO(fcdE) },
       { id:15, name:'Permit Submission',             type:'milestone', date: toISO(pmSub) },
       { id:16, name:'Permit Review',                 type:'bar', color:'#D83968', start: toISO(pmSub), end: toISO(pmRvE) },
       { id:11, name:'Bidding & Procurement',         type:'bar', color:'#282829', start: toISO(bidS),  end: toISO(bidE) },
       { id:12, name:'Construction',                  type:'bar', color:'#6D245D', start: toISO(conS),  end: toISO(conE),
         isEstimate: true, label: 'Estimated Construction Period' },
+      ...ff.tasks,
       { id:13, name:'As-Built / Closeout Documents', type:'bar', color:'#282829', start: toISO(clS),   end: toISO(clE) },
       { id:14, name:'Project Occupancy',             type:'milestone', date: toISO(occ) },
     ],
@@ -227,10 +250,10 @@ export function createMediumTemplate() {
         { color:'#20ABE2', code:'OC', text:'Project Occupancy / Beneficial Occupancy', date: toISO(occ)  },
       ],
       estimates: [
-        { color:'#8B9A3A', code:'SD', text:'Schematic Design',      date: toISO(sdE) },
-        { color:'#8B9A3A', code:'DD', text:'Design Development',     date: toISO(d50E) },
+        { color:'#00914D', code:'SD', text:'Schematic Design',      date: toISO(sdE) },
+        { color:'#00914D', code:'DD', text:'Design Development',     date: toISO(d50E) },
       ],
-      approvals: [{ text:'Building Permit Approval', date: toISO(pmRvE) }],
+      approvals: [{ text:'Building Permit Approval', date: toISO(pmRvE) }, ff.approval],
     },
   };
 }
@@ -258,6 +281,7 @@ export function createLargeTemplate() {
   const conS   = pmRvE,        conE   = w(conS, 60);
   const clS    = conE,         clE    = w(clS, 8);
   const occ    = clE;
+  const ff     = ffe(d50S, fcdE, conE, 19);
 
   return {
     id: generateId(),
@@ -267,24 +291,25 @@ export function createLargeTemplate() {
     viewStart:  toISO(new Date(base.getFullYear(), base.getMonth() - 1, 1)),
     viewEnd:    toISO(mEnd(occ, 1)),
     todayMark:  toISO(new Date()),
-    nextTaskId: 19,
+    nextTaskId: 22,
     tasks: [
       { id:1,  name:'Project Kick-Off',                type:'milestone', date: toISO(base) },
-      { id:2,  name:'Programming',                     type:'bar', color:'#8B9A3A', start: toISO(prS),   end: toISO(prE) },
-      { id:3,  name:'Schematic Design',                type:'bar', color:'#8B9A3A', start: toISO(sdS),   end: toISO(sdE) },
-      { id:4,  name:'SD Owner Review',                 type:'bar', color:'#20ABE2', start: toISO(r1S),   end: toISO(r1E) },
-      { id:5,  name:'50% Design Development',          type:'bar', color:'#8B9A3A', start: toISO(d50S),  end: toISO(d50E) },
-      { id:6,  name:'50% Owner Review',                type:'bar', color:'#20ABE2', start: toISO(r2S),   end: toISO(r2E) },
-      { id:7,  name:'95% Construction Documents',      type:'bar', color:'#8B9A3A', start: toISO(d95S),  end: toISO(d95E) },
-      { id:8,  name:'95% Owner Review',                type:'bar', color:'#20ABE2', start: toISO(r3S),   end: toISO(r3E) },
-      { id:9,  name:'100% Construction Documents',     type:'bar', color:'#8B9A3A', start: toISO(d100S), end: toISO(d100E) },
-      { id:10, name:'100% Owner Review',               type:'bar', color:'#20ABE2', start: toISO(r4S),   end: toISO(r4E) },
-      { id:11, name:'Final Construction Documents',    type:'bar', color:'#8B9A3A', start: toISO(fcdS),  end: toISO(fcdE) },
+      { id:2,  name:'Programming',                     type:'bar', color:'#00914D', start: toISO(prS),   end: toISO(prE) },
+      { id:3,  name:'Schematic Design',                type:'bar', color:'#00914D', start: toISO(sdS),   end: toISO(sdE) },
+      { id:4,  name:'SD Owner Review',                 type:'bar', color:'#949494', start: toISO(r1S),   end: toISO(r1E) },
+      { id:5,  name:'50% Design Development',          type:'bar', color:'#00914D', start: toISO(d50S),  end: toISO(d50E) },
+      { id:6,  name:'50% Owner Review',                type:'bar', color:'#949494', start: toISO(r2S),   end: toISO(r2E) },
+      { id:7,  name:'95% Construction Documents',      type:'bar', color:'#00914D', start: toISO(d95S),  end: toISO(d95E) },
+      { id:8,  name:'95% Owner Review',                type:'bar', color:'#949494', start: toISO(r3S),   end: toISO(r3E) },
+      { id:9,  name:'100% Construction Documents',     type:'bar', color:'#00914D', start: toISO(d100S), end: toISO(d100E) },
+      { id:10, name:'100% Owner Review',               type:'bar', color:'#949494', start: toISO(r4S),   end: toISO(r4E) },
+      { id:11, name:'Final Construction Documents',    type:'bar', color:'#00914D', start: toISO(fcdS),  end: toISO(fcdE) },
       { id:12, name:'Permit Submission',               type:'milestone', date: toISO(pmSub) },
       { id:13, name:'Permit Review',                   type:'bar', color:'#D83968', start: toISO(pmRvS), end: toISO(pmRvE) },
       { id:14, name:'Bidding & Procurement',           type:'bar', color:'#282829', start: toISO(bidS),  end: toISO(bidE) },
       { id:16, name:'Construction',                    type:'bar', color:'#6D245D', start: toISO(conS),  end: toISO(conE),
         isEstimate: true, label: 'Estimated Construction Period' },
+      ...ff.tasks,
       { id:17, name:'As-Built / Closeout Documents',   type:'bar', color:'#282829', start: toISO(clS),   end: toISO(clE) },
       { id:18, name:'Project Occupancy',               type:'milestone', date: toISO(occ) },
     ],
@@ -301,11 +326,12 @@ export function createLargeTemplate() {
         { color:'#20ABE2', code:'OC', text:'Project Occupancy / Beneficial Occupancy', date: toISO(occ)  },
       ],
       estimates: [
-        { color:'#8B9A3A', code:'SD', text:'Schematic Design',      date: toISO(sdE) },
-        { color:'#8B9A3A', code:'DD', text:'Design Development',     date: toISO(d50E) },
+        { color:'#00914D', code:'SD', text:'Schematic Design',      date: toISO(sdE) },
+        { color:'#00914D', code:'DD', text:'Design Development',     date: toISO(d50E) },
       ],
       approvals: [
         { text:'Building Permit Approval', date: toISO(pmApp) },
+        ff.approval,
       ],
     },
   };

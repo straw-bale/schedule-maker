@@ -1,11 +1,11 @@
 <script>
-  const ROW_H = 34;
+  const ROW_H = 26;
 
   let { tasks, onRename, onDelete, onReorder, onAdd, onDragChange, highlightId = null, zoom = 'month' } = $props();
 
   // monthly: year(18) + month(28) + markers(22) = 68px
   // biweek/week: year(18) + mspan(28) + col(22) + markers(22) = 90px
-  let hdrH = $derived(zoom === 'month' ? 68 : 90);
+  let hdrH = $derived(zoom === 'month' ? 60 : 82);
 
   function initRowDrag(handle) {
     handle.addEventListener('mousedown', e => {
@@ -138,8 +138,8 @@
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: .13em;
-    color: #999;
-    border-bottom: 1px solid var(--lgray);
+    color: var(--black);
+    border-bottom: 1px solid var(--black);
     flex-shrink: 0;
     position: sticky;
     top: 0;
@@ -148,11 +148,11 @@
   }
   .task-list { position: relative; }
   .t-row {
-    height: 34px;
+    height: 26px;
     display: flex;
     align-items: center;
     padding: 0 10px;
-    border-bottom: 1px solid var(--lgray);
+    border-bottom: 1px solid var(--black);
     gap: 5px;
     transition: background .1s;
     position: relative;
@@ -238,7 +238,7 @@
     font-size: 10.5px;
   }
   :global(.t-drop-spacer) {
-    height: 34px;
+    height: 26px;
     background: rgba(32,171,226,.08);
     border-left: 3px solid var(--blue);
     border-bottom: 1px solid var(--lgray);

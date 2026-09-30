@@ -4,6 +4,7 @@
   import GanttPanel   from '$lib/components/GanttPanel.svelte';
   import LegendFooter from '$lib/components/LegendFooter.svelte';
   import { supabase }  from '$lib/supabase.js';
+  import { normalizeProject } from '$lib/stores/projects.js';
   import { parseDate, toISO, monthList } from '$lib/utils/dates.js';
 
   let { data } = $props();
@@ -37,7 +38,7 @@
 
     loading = false;
     if (error || !rows) { notFound = true; return; }
-    project = rows.data;
+    project = normalizeProject(rows.data);
   });
 </script>
 

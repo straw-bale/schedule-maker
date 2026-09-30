@@ -1,7 +1,7 @@
 <script>
-  import { parseDate, toISO, timeColumns, ZOOM_COL_W, totalDays, dateToPx, dateToPxMonth, pxToDateMonth, dateToPxPeriod, pxToDatePeriod, isLightColor, MONTHS_SHORT } from '$lib/utils/dates.js';
+  import { parseDate, toISO, timeColumns, ZOOM_COL_W, totalDays, dateToPx, dateToPxMonth, pxToDateMonth, dateToPxPeriod, pxToDatePeriod, isLightColor, MONTHS_SHORT, toWeekday } from '$lib/utils/dates.js';
 
-  const ROW_H = 34;
+  const ROW_H = 26;
 
   let {
     tasks, viewStart: vsStr, viewEnd: veStr, todayMark: tmStr,
@@ -30,13 +30,17 @@
     : null);
   let ghostY = $derived(reorderInsertIdx !== null ? reorderInsertIdx * ROW_H : null);
 
+  // `half` is the 50% halftone (solid color mixed 50/50 with white)
   const BAR_COLORS = [
-    { hex: '#282829', label: 'Black — Programming / Bidding / Closeout' },
-    { hex: '#8B9A3A', label: 'Olive — Design phases (SD, DD, CDs)'      },
-    { hex: '#00914D', label: 'Lime'                                      },
-    { hex: '#20ABE2', label: 'Blue — Client / Owner Review'             },
-    { hex: '#6D245D', label: 'Berry — Construction & CA'                },
-    { hex: '#D83968', label: 'Magenta — Permit / AHJ'                   },
+    { hex: '#282829', half: '#949494', label: 'Black — Programming / Bidding / Closeout', halfLabel: 'Gray — Client / Design Review' },
+    { hex: '#00914D', half: '#80C8A6', label: 'Lime — Design phases (SD, DD, CDs)'      },
+    { hex: '#20ABE2', half: '#90D5F1', label: 'Blue — Holds / Waiting periods'           },
+    { hex: '#6D245D', half: '#B692AE', label: 'Berry — Construction & CA'                },
+    { hex: '#D83968', half: '#EC9CB4', label: 'Magenta — Permit / AHJ'                   },
+  ];
+  const SWATCH_ROWS = [
+    BAR_COLORS.map(c => ({ hex: c.hex,  label: c.label })),
+    BAR_COLORS.map(c => ({ hex: c.half, label: c.halfLabel ?? `${c.label} (50% halftone)` })),
   ];
 
   let viewStart  = $derived(parseDate(vsStr));
@@ -125,7 +129,7 @@
     popupTask = { ...task };
     const vw = window.innerWidth, vh = window.innerHeight;
     popupX = cx + 10 + 230 > vw ? cx - 240 : cx + 10;
-    popupY = cy + 8 + 180 > vh ? cy - 185 : cy + 8;
+    popupY = cy + 8 + 210 > vh ? cy - 215 : cy + 8;
   }
   function closePopup() { popupTask = null; }
   function onPopupChange(field, val) {
@@ -155,7 +159,7 @@
 
       if (task.type === 'milestone') {
         const d = parseDate(origDate); d.setDate(d.getDate() + dd);
-        draft.date = toISO(d);
+        draft.date = toWeekday(toISO(d));
       } else if (mode === 'move') {
         const ns = parseDate(origStart); ns.setDate(ns.getDate() + dd);
         const ne = parseDate(origEnd);   ne.setDate(ne.getDate() + dd);
@@ -199,7 +203,7 @@
 
     function onMove(ev) {
       const newPx = Math.max(0, Math.min(ganttWidth, origPx + (ev.clientX - startX)));
-      draggingOverlay = { section, idx, date: pxToDate(newPx) };
+      draggingOverlay = { section, idx, date: toWeekday(pxToDate(newPx)) };
     }
 
     function onUp() {
@@ -456,7 +460,7 @@
           {@const width    = Math.max(rawRight - left, 6)}
           {#if rawRight >= 0 && rawLeft <= ganttWidth}
             <div class="g-ghost-bar"
-              style:top="{ghostY + 7}px"
+              style:top="{ghostY + 2}px"
               style:left="{left}px"
               style:width="{width}px"
               style:background={ghostTask.color}
@@ -479,24 +483,26 @@
     <div class="dp-task-name">{popupTask.name}</div>
     {#if popupTask.type === 'milestone'}
       <div class="dp-lbl">Date</div>
-      <input type="date" value={popupTask.date} oninput={(e) => onPopupChange('date', e.target.value)}>
+      <input type="date" value={popupTask.date} oninput={(e) => { const v = toWeekday(e.target.value); e.target.value = v; onPopupChange('date', v); }}>
     {:else}
       <div class="dp-lbl">Start</div>
       <input type="date" value={popupTask.start} oninput={(e) => onPopupChange('start', e.target.value)}>
       <div class="dp-lbl">End</div>
       <input type="date" value={popupTask.end} oninput={(e) => onPopupChange('end', e.target.value)}>
       <div class="dp-lbl">Color</div>
-      <div class="dp-colors">
-        {#each BAR_COLORS as c}
-          <div
-            class="dp-swatch"
-            class:dp-swatch-active={popupTask.color === c.hex}
-            style:background={c.hex}
-            title={c.label}
-            onclick={() => { onColorChange?.(popupTask.id, c.hex); popupTask = { ...popupTask, color: c.hex }; }}
-          ></div>
-        {/each}
-      </div>
+      {#each SWATCH_ROWS as row}
+        <div class="dp-colors">
+          {#each row as c}
+            <div
+              class="dp-swatch"
+              class:dp-swatch-active={popupTask.color === c.hex}
+              style:background={c.hex}
+              title={c.label}
+              onclick={() => { onColorChange?.(popupTask.id, c.hex); popupTask = { ...popupTask, color: c.hex }; }}
+            ></div>
+          {/each}
+        </div>
+      {/each}
     {/if}
   </div>
 {/if}
@@ -510,25 +516,25 @@
     position: sticky; top: 0; z-index: 15;
     background: #fff;
   }
-  .year-row { display: flex; height: 18px; border-bottom: 1px solid var(--lgray); }
+  .year-row { display: flex; height: 18px; border-bottom: 1px solid var(--black); }
   .year-block {
     height: 100%; display: flex; align-items: center; padding: 0 8px;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 11px;
     letter-spacing: .05em; color: var(--black);
-    border-right: 1px solid var(--lgray); flex-shrink: 0;
+    border-right: 1px solid var(--black); flex-shrink: 0;
   }
-  .month-row { display: flex; height: 28px; border-bottom: 1px solid var(--lgray); }
+  .month-row { display: flex; height: 20px; border-bottom: 1px solid var(--black); }
   .month-cell {
     flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 400; font-size: 9px;
-    text-transform: uppercase; letter-spacing: .07em; color: #aaa;
-    border-right: 1px dashed var(--mgray);
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 500; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .07em; color: var(--black);
+    border-right: 1px dashed var(--black);
   }
-  .col-row { display: flex; height: 22px; border-bottom: 1px solid var(--lgray); }
+  .col-row { display: flex; height: 22px; border-bottom: 1px solid var(--black); }
   .col-cell {
     flex-shrink: 0; display: flex; align-items: center; justify-content: center;
     font-family: 'Barlow Condensed', sans-serif; font-weight: 500; font-size: 9px;
-    color: #bbb; border-right: 1px solid var(--lgray);
+    color: var(--black); border-right: 1px solid var(--black);
   }
 
   /* Markers row */
@@ -536,7 +542,7 @@
     position: relative;
     height: 22px;
     overflow: visible;
-    border-bottom: 1px solid var(--lgray);
+    border-bottom: 1px solid var(--black);
     box-sizing: border-box;
   }
   .ov-pill {
@@ -613,7 +619,7 @@
 
   /* Rows */
   .bar-rows { position: relative; z-index: 4; }
-  .g-row    { height: 34px; position: relative; border-bottom: 1px solid var(--lgray); overflow: visible; }
+  .g-row    { height: 26px; position: relative; border-bottom: 1px solid var(--black); overflow: visible; }
   .row-highlight  { background: rgba(32,171,226,.14) !important; }
   .row-dragging        { background: rgba(0,0,0,.04); }
   .row-reorder-highlight { background: rgba(32,171,226,.1) !important; }
@@ -629,13 +635,13 @@
   .g-reorder-gap  {
     background: rgba(32,171,226,.12);
     border-top: 2px solid var(--blue);
-    border-bottom: 1px solid var(--lgray);
+    border-bottom: 1px solid var(--black);
     pointer-events: none;
   }
 
   /* Bars */
   .bar {
-    position: absolute; top: 7px; height: 20px;
+    position: absolute; top: 2px; height: 20px;
     border-radius: 2px; cursor: grab; display: flex; align-items: center;
     overflow: visible; user-select: none; z-index: 5; min-width: 6px;
     transition: filter .1s;
@@ -708,7 +714,7 @@
   }
   .dp input[type="date"]:focus { border-color: var(--blue); }
   .dp-colors {
-    display: flex; gap: 5px; margin-top: 2px;
+    display: flex; gap: 5px; margin-top: 4px;
   }
   .dp-swatch {
     width: 22px; height: 22px; border-radius: 3px; cursor: pointer;

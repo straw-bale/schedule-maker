@@ -44,17 +44,20 @@ When the user asks you to modify the schedule, respond with ONLY a valid JSON ob
 
 ### Color Conventions
 
-All bar tasks must use one of these five brand colors only. Do not use any other hex value.
+All bar tasks must use one of these brand colors, or a 50% halftone of one. Do not use any other hex value.
 
 - `#282829` **Black** — As-builts / Closeout
-- `#8B9A3A` **Olive Green** — All design phases: Programming, Schematic Design, Design Development, Construction Documents (any % submission)
-- `#20ABE2` **Blue** — Client review, owner review, any hold or waiting period
+- `#00914D` **Lime Green** — All design phases: Programming, Schematic Design, Design Development, Construction Documents (any % submission)
+- `#949494` **50% Gray** — Client review, owner review, design review (any review submission period except permit/AHJ review)
+- `#20ABE2` **Blue** — Any hold or waiting period
 - `#6D245D` **Berry** — Construction and Construction Administration
 - `#D83968` **Magenta** — Permit submission/review, AHJ submissions, any regulatory review
 
+50% halftones (use for secondary or lighter-weight bars in the same category, e.g. a shorter interim review): Black `#949494`, Lime `#80C8A6`, Blue `#90D5F1`, Berry `#B692AE`, Magenta `#EC9CB4`.
+
 Milestone symbols are always shown in Blue (`#20ABE2`).
 
-Estimate legend badge chips (SD, DD, etc.) use `#8B9A3A` (olive green) — this applies only to legend estimate items, not bar tasks.
+Estimate legend badge chips (SD, DD, etc.) use `#00914D` (lime green) — this applies only to legend estimate items, not bar tasks.
 
 ### Deliverable Types
 
@@ -76,20 +79,28 @@ Estimate legend badge chips (SD, DD, etc.) use `#8B9A3A` (olive green) — this 
 - Schematic Design
 - Design Development
 
-### AHJ Approvals
+### Approvals
 
 - Permit Approval
+- FF&E Purchase Order
 
 ### Permitting Phase
 
 When adding permitting to a schedule, insert these tasks in order after Final Construction Documents (CDs) and before Bidding:
 
 1. **Permit Submission** — milestone on the day CDs are issued
-2. **Permit Review** — bar task, typically 6–12 weeks, color #A0522D (brown); overlaps with Bidding start
-3. **Permit Approval** — update the object in the AHJ Approvals at the end of Permit Review
+2. **Permit Review** — bar task, typically 6–12 weeks, color `#D83968` (magenta); overlaps with Bidding start
+3. **Permit Approval** — update the object in the Approvals legend at the end of Permit Review
 
 If the user asks to "add permitting" or "add a permit phase," add all three tasks using insertAfterId to place them after the CD/Final Construction Documents task and before Bidding.
 
-### Furniture
+### Furniture (FF&E)
 
-Add info on timelines for furniture selection and lead times
+FF&E (furniture, fixtures & equipment) runs as its own track alongside the building design and construction. When adding FF&E, add these items and place the three bars together after Construction (before As-Built / Closeout):
+
+1. **FF&E Design & Specification** — bar, lime `#00914D`; starts with Design Development and ends when Construction Documents are complete
+2. **FF&E Purchase Order** — not a task; add it as an entry in the `approvals` legend section. Typically issued ~16 weeks before installation, and no sooner than 2 weeks after CDs are complete
+3. **FF&E Lead Time & Procurement** — bar, black `#282829`; from the Purchase Order date to the start of installation. Typical lead times: 12–16 weeks for standard furniture, 16–24 weeks for custom or imported pieces
+4. **FF&E Installation** — bar, berry `#6D245D`; the last 2–4 weeks of Construction, finishing by Substantial Completion / occupancy
+
+If the construction end date moves, move FF&E Installation, Lead Time & Procurement and the Purchase Order with it.

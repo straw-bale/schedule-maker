@@ -83,13 +83,24 @@ export function pxToDatePeriod(xPx, viewStart, colW, periodDays) {
   return toISO(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
 }
 
+/** Move a weekend date to the nearest weekday (Sat → Fri, Sun → Mon). Returns ISO. */
+export function toWeekday(iso) {
+  if (!iso) return iso;
+  const d = parseDate(iso);
+  const day = d.getDay();
+  if (day === 6) d.setDate(d.getDate() - 1);
+  else if (day === 0) d.setDate(d.getDate() + 1);
+  else return iso;
+  return toISO(d);
+}
+
 /** True if hex colour is light enough to need dark text */
 export function isLightColor(hex) {
   if (!hex || hex.length < 7) return false;
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
-  return (r * 299 + g * 587 + b * 114) / 1000 > 155;
+  return (r * 299 + g * 587 + b * 114) / 1000 > 140;
 }
 
 /** Earliest task start and latest task end across all tasks */
