@@ -9,6 +9,7 @@
   import { goto } from '$app/navigation';
 
   let { data } = $props();
+  let markerLanes = $state(1); // stacked marker lanes reported by GanttPanel
 
   // Derive project from store reactively
   let allProjects = $state([]);
@@ -201,7 +202,7 @@
     const g = document.createElement('div');
     g.style.cssText = GHOST_CSS;
     const badge = document.createElement('div');
-    badge.style.cssText = `width:18px;height:18px;border-radius:50%;background:#D4804A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;`;
+    badge.style.cssText = `width:18px;height:18px;border-radius:50%;background:#D4804A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;`;
     badge.textContent = String(n);
     g.appendChild(badge);
     g.appendChild(document.createTextNode('New Deliverable'));
@@ -222,7 +223,7 @@
     const g = document.createElement('div');
     g.style.cssText = GHOST_CSS;
     const circle = document.createElement('div');
-    circle.style.cssText = `width:18px;height:18px;border-radius:50%;background:${est.color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;`;
+    circle.style.cssText = `width:18px;height:18px;border-radius:50%;background:${est.color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;`;
     circle.textContent = est.code || 'E';
     g.appendChild(circle);
     g.appendChild(document.createTextNode(est.text));
@@ -347,16 +348,11 @@
     projectStore.updateProject(data.id, { [field]: val });
   }
   let titleEl    = $state(null);
-  let subtitleEl = $state(null);
   // Only push store value to DOM when element isn't focused — prevents double-render on blur.
   $effect(() => { if (titleEl    && document.activeElement !== titleEl)    titleEl.textContent    = project?.title    ?? ''; });
-  $effect(() => { if (subtitleEl && document.activeElement !== subtitleEl) subtitleEl.textContent = project?.subtitle ?? ''; });
 
   function updateTitle(val) {
     projectStore.updateProject(data.id, { title: val });
-  }
-  function updateSubtitle(val) {
-    projectStore.updateProject(data.id, { subtitle: val });
   }
 
   function handleLegendUpdate(section, items) {
@@ -426,19 +422,21 @@
     return `${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
   }
 
-  let duration = $derived.by(() => {
-    if (!trueStart || !trueEnd) return 0;
-    const s = parseDate(trueStart);
-    const e = parseDate(trueEnd);
-    return (e.getFullYear() - s.getFullYear()) * 12 + e.getMonth() - s.getMonth();
+  // True when some task dates fall outside the visible month range
+  let tasksOutsideView = $derived.by(() => {
+    if (!project || !trueStart || !trueEnd) return false;
+    const s = parseDate(trueStart), e = parseDate(trueEnd);
+    const vs = parseDate(project.viewStart), ve = parseDate(project.viewEnd);
+    return s < new Date(vs.getFullYear(), vs.getMonth(), 1) ||
+           e >= new Date(ve.getFullYear(), ve.getMonth() + 1, 1);
   });
 
   function fitView() {
     if (!project || !trueStart || !trueEnd) return;
     const s  = parseDate(trueStart);
     const e  = parseDate(trueEnd);
-    const vs = new Date(s.getFullYear(), s.getMonth() - 1, 1);
-    const ve = new Date(e.getFullYear(), e.getMonth() + 1, 1);
+    const vs = new Date(s.getFullYear(), s.getMonth(), 1);
+    const ve = new Date(e.getFullYear(), e.getMonth(), 1);
     projectStore.updateProject(data.id, { viewStart: toISO(vs), viewEnd: toISO(ve) });
   }
 
@@ -501,14 +499,6 @@
             onblur={(e) => updateTitle(e.target.textContent.trim() || project.title)}
             onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }}
           ></div>
-          <div
-            bind:this={subtitleEl}
-            class="hdr-sub"
-            contenteditable="true"
-            spellcheck="false"
-            onblur={(e) => updateSubtitle(e.target.textContent.trim() || project.subtitle)}
-            onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(), e.target.blur(); } }}
-          ></div>
           <div class="hdr-meta">
             <div
               class="meta-field"
@@ -553,19 +543,20 @@
     <!-- Timeline range control strip -->
     <div class="timeline-bar no-print">
       <div class="tl-end">
-        <span class="tl-lbl">Start</span>
+        <span class="tl-lbl">Show from</span>
         <div class="tl-ctrl">
-          <button class="tl-btn" onclick={() => adjustView(-1, 0)} title="Add one month to the start">←</button>
-          <span class="tl-date">{trueStart ? fmtMonthYear(trueStart) : '—'}</span>
-          <button class="tl-btn" onclick={() => adjustView(1, 0)} title="Remove one month from the start">→</button>
+          <button class="tl-btn" onclick={() => adjustView(-1, 0)} title="Start one month earlier (adds a column)">‹</button>
+          <span class="tl-date">{fmtMonthYear(project.viewStart)}</span>
+          <button class="tl-btn" onclick={() => adjustView(1, 0)} title="Start one month later (removes a column)">›</button>
         </div>
       </div>
 
       <div class="tl-center">
-        <button class="tl-shift" onclick={() => adjustView(-1, -1)} title="Shift entire timeline earlier">◀</button>
-        <button class="tl-fit" onclick={fitView} title="Fit view to task content">Fit</button>
-        <span class="tl-dur">{duration} months</span>
-        <button class="tl-shift" onclick={() => adjustView(1, 1)} title="Shift entire timeline later">▶</button>
+        <button class="tl-shift" onclick={() => adjustView(-1, -1)} title="Slide the view one month earlier (same number of months)">◀</button>
+        <span class="tl-dur">{ganttMonths.length} months shown</span>
+        <button class="tl-shift" onclick={() => adjustView(1, 1)} title="Slide the view one month later (same number of months)">▶</button>
+        <button class="tl-fit" class:tl-fit-warn={tasksOutsideView} onclick={fitView}
+          title="Set the view to cover all tasks">{tasksOutsideView ? 'Some tasks hidden · Fit to tasks' : 'Fit to tasks'}</button>
       </div>
 
       <div class="tl-end tl-end-right">
@@ -584,11 +575,11 @@
           ><span class="today-pip"></span>Today</button>
         </div>
         <div class="tl-ctrl">
-          <button class="tl-btn" onclick={() => adjustView(0, -1)} title="Remove one month from the end">←</button>
-          <span class="tl-date">{trueEnd ? fmtMonthYear(trueEnd) : '—'}</span>
-          <button class="tl-btn" onclick={() => adjustView(0, 1)} title="Add one month to the end">→</button>
+          <button class="tl-btn" onclick={() => adjustView(0, -1)} title="End one month earlier (removes a column)">‹</button>
+          <span class="tl-date">{fmtMonthYear(project.viewEnd)}</span>
+          <button class="tl-btn" onclick={() => adjustView(0, 1)} title="End one month later (adds a column)">›</button>
         </div>
-        <span class="tl-lbl">End</span>
+        <span class="tl-lbl">Show through</span>
       </div>
     </div>
 
@@ -599,6 +590,8 @@
           <div class="sch-inner" style:width="{TASK_COL_W + ganttWidth}px">
 
             <TaskPanel
+
+              markerLanes={markerLanes}
               tasks={project.tasks}
               onRename={handleRename}
               onDelete={handleDelete}
@@ -610,6 +603,8 @@
             />
 
             <GanttPanel
+
+              bind:markerLanes
               tasks={project.tasks}
               viewStart={project.viewStart}
               viewEnd={project.viewEnd}
@@ -676,7 +671,7 @@
 <style>
   .not-found {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    height: 100vh; gap: 16px; font-family: 'Barlow', sans-serif; color: #aaa;
+    height: 100vh; gap: 16px; font-family: 'Barlow', sans-serif; color: var(--black);
   }
   .not-found button {
     background: var(--blue); color: #fff; border: none; border-radius: 3px;
@@ -712,11 +707,11 @@
     min-width: 0;
   }
   .back-btn {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10px;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .1em;
-    color: #aaa;
+    color: var(--black);
     text-decoration: none;
     padding-top: 2px;
     white-space: nowrap;
@@ -738,18 +733,6 @@
   }
   .hdr-title:focus { background: rgba(255,210,0,.25); border-radius: 2px; padding: 0 4px; }
   .hdr-title:empty::before { content: 'Project Title'; color: #ccc; pointer-events: none; }
-  .hdr-sub {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 400;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: .1em;
-    color: #aaa;
-    outline: none;
-    cursor: text;
-    margin-top: 2px;
-  }
-  .hdr-sub:focus { background: rgba(32,171,226,.06); border-radius: 2px; padding: 0 4px; }
   .hdr-meta {
     display: flex;
     flex-direction: row;
@@ -759,15 +742,15 @@
     margin-top: 5px;
   }
   .meta-sep {
-    font-size: 9px;
-    color: #ccc;
+    font-size: 11px;
+    color: var(--black);
     padding: 0 5px;
     user-select: none;
   }
   .meta-field {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10.5px;
-    color: #999;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px;
+    color: var(--black);
     outline: none;
     cursor: text;
   }
@@ -780,9 +763,9 @@
     padding-top: 2px;
   }
   .action-btn {
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 700;
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .1em;
     border: 1px solid var(--lgray);
@@ -820,11 +803,12 @@
   }
   .tl-end-right { flex-direction: row-reverse; }
   .tl-lbl {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 9px;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: .12em;
-    color: #bbb;
+    letter-spacing: .06em;
+    white-space: nowrap;
+    color: var(--black);
   }
   .tl-ctrl {
     display: flex;
@@ -840,14 +824,14 @@
     padding: 0 8px;
     height: 22px;
     cursor: pointer;
-    font-size: 11px;
-    color: #aaa;
+    font-size: 14px;
+    color: var(--black);
     transition: background .1s, color .1s;
     line-height: 1;
   }
   .tl-btn:hover { background: var(--blue); color: #fff; }
   .tl-date {
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 600;
     font-size: 11px;
     color: var(--black);
@@ -863,32 +847,33 @@
     gap: 8px;
   }
   .tl-dur {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10px;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .1em;
-    color: #bbb;
+    color: var(--black);
     white-space: nowrap;
   }
   .tl-shift {
     background: none;
     border: none;
-    font-size: 10px;
-    color: #ccc;
+    font-size: 11px;
+    color: var(--black);
     cursor: pointer;
     padding: 2px 4px;
     transition: color .1s;
     line-height: 1;
   }
-  .tl-shift:hover { color: var(--black); }
+  .tl-shift:hover { color: var(--blue); }
   .tl-fit {
-    background: none; border: none; padding: 2px 6px;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 9px;
+    background: #fff; border: 1px solid var(--lgray); border-radius: 3px; padding: 0 8px; height: 22px;
+    font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 11px;
     text-transform: uppercase; letter-spacing: .08em;
-    color: #ccc; cursor: pointer;
+    color: var(--black); cursor: pointer;
     transition: color .1s; line-height: 1;
   }
-  .tl-fit:hover { color: var(--blue); }
+  .tl-fit:hover { color: var(--blue); border-color: var(--blue); }
+  .tl-fit-warn { color: var(--mag); border-color: var(--mag); }
 
   /* View options group (zoom + today toggle) */
   .view-opts {
@@ -907,9 +892,9 @@
   .zoom-btn {
     background: none; border: none; border-right: 1px solid var(--lgray);
     padding: 0 8px; height: 22px;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 10px;
+    font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 11px;
     text-transform: uppercase; letter-spacing: .06em;
-    color: #aaa; cursor: pointer; transition: background .1s, color .1s;
+    color: var(--black); cursor: pointer; transition: background .1s, color .1s;
     line-height: 1;
   }
   .zoom-btn:last-child { border-right: none; }
@@ -920,12 +905,12 @@
   .today-toggle {
     background: none; border: none; padding: 0;
     display: flex; align-items: center; gap: 4px;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 10px;
+    font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 11px;
     text-transform: uppercase; letter-spacing: .08em;
-    color: #ccc; cursor: pointer;
+    color: var(--black); cursor: pointer;
     transition: color .15s;
   }
-  .today-toggle:hover { color: #999; }
+  .today-toggle:hover { color: var(--black); }
   .today-toggle-on { color: var(--black); }
   .today-pip {
     width: 7px; height: 7px; border-radius: 50%;

@@ -185,7 +185,7 @@
   }
   .close-btn {
     background: none; border: none; cursor: pointer;
-    color: #bbb; font-size: 13px; line-height: 1; padding: 0;
+    color: var(--black); font-size: 13px; line-height: 1; padding: 0;
     transition: color .12s;
   }
   .close-btn:hover { color: var(--black); }
@@ -224,7 +224,7 @@
   .preview-placeholder {
     display: flex; align-items: center; justify-content: center;
     width: 100%; height: 100%;
-    font-size: 11px; color: #aaa;
+    font-size: 11px; color: var(--black);
   }
 
   /* Options column */
@@ -238,20 +238,20 @@
 
   .section { display: flex; flex-direction: column; gap: 6px; }
   .section-label {
-    font-size: 9px; font-weight: 700;
+    font-size: 11px; font-weight: 700;
     text-transform: uppercase; letter-spacing: .13em;
-    color: #aaa; margin-bottom: 2px;
+    color: var(--black); margin-bottom: 2px;
   }
 
   /* Paper size buttons */
   .paper-btns { display: flex; flex-direction: column; gap: 4px; }
   .paper-btn {
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 600; font-size: 11px;
     text-align: left;
     background: #fff; border: 1px solid var(--lgray);
     border-radius: 3px; padding: 5px 9px;
-    color: #888; cursor: pointer;
+    color: var(--black); cursor: pointer;
     transition: border-color .12s, color .12s, background .12s;
   }
   .paper-btn:hover:not(.paper-active) {
@@ -268,7 +268,7 @@
     display: flex; align-items: center; justify-content: space-between;
     font-size: 12px;
   }
-  .info-key { color: #888; }
+  .info-key { color: var(--black); }
   .info-val { color: var(--black); font-weight: 600; }
   .scale-full { color: #3B8FA0; }
   .scale-down { color: #9E9068; }
@@ -292,18 +292,18 @@
     flex-shrink: 0;
   }
   .btn-cancel {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 600; font-size: 10px;
+    font-family: 'Barlow', sans-serif;
+    font-weight: 600; font-size: 11px;
     text-transform: uppercase; letter-spacing: .1em;
     background: none; border: 1px solid var(--lgray);
-    color: #888; border-radius: 3px;
+    color: var(--black); border-radius: 3px;
     padding: 7px 14px; cursor: pointer;
     transition: border-color .12s, color .12s;
   }
   .btn-cancel:hover { border-color: #aaa; color: var(--black); }
   .btn-print {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 700; font-size: 10px;
+    font-family: 'Barlow', sans-serif;
+    font-weight: 700; font-size: 11px;
     text-transform: uppercase; letter-spacing: .1em;
     background: var(--black); border: 1px solid var(--black);
     color: #fff; border-radius: 3px;

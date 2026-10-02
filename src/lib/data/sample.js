@@ -1,5 +1,11 @@
 import { generateId, toISO, toWeekday } from '$lib/utils/dates.js';
 
+// Default notes shown in the legend footer for new projects
+const DEFAULT_NOTES = [
+  'Project schedules are reliant on timely Owner input and approvals.',
+  'R3A does not provide accurate projections for construction duration or timelines beyond the Construction Documentation phase.',
+].join('\n');
+
 // Add N weeks to a Date, returning a new Date
 function w(date, n) {
   const d = new Date(date);
@@ -49,7 +55,7 @@ export function createSampleProject() {
   return {
     id: generateId(),
     title:    'Sample Project',
-    subtitle: 'Overall Project Schedule',
+    notes:    DEFAULT_NOTES,
     date:     'June 1, 2026',
     number:   'Project No. 00001',
     client:   'Sample Client',
@@ -69,7 +75,7 @@ export function createSampleProject() {
       { id:9,  name:'Permit Review',                 type:'bar', color:'#D83968', start: toISO(pmRvS), end: toISO(pmRvE) },
       { id:10, name:'Bidding & Procurement',         type:'bar', color:'#282829', start: toISO(bidS),  end: toISO(bidE) },
       { id:11, name:'Construction',                  type:'bar', color:'#6D245D', start: toISO(conS),  end: toISO(conE),
-        isEstimate: true, label: 'Estimated 26 Week Construction Period' },
+        isEstimate: true },
       ...ff.tasks,
       { id:12, name:'As-Built / Closeout Documents', type:'bar', color:'#282829', start: toISO(clS),   end: toISO(clE) },
       { id:13, name:'Project Occupancy',             type:'milestone', date: toISO(occ), label: 'Beneficial Occupancy' },
@@ -103,7 +109,7 @@ export function createBlankProject() {
   return {
     id: generateId(),
     title: '',
-    subtitle: 'Overall Project Schedule',
+    notes:    DEFAULT_NOTES,
     date: '', number: '', client: '',
     viewStart:  ys,
     viewEnd:    ye,
@@ -141,7 +147,7 @@ export function createSmallTemplate() {
   return {
     id: generateId(),
     title: '',
-    subtitle: 'Renovation / Tenant Improvement',
+    notes:    DEFAULT_NOTES,
     date: '', number: '', client: '',
     viewStart:  toISO(new Date(base.getFullYear(), base.getMonth() - 1, 1)),
     viewEnd:    toISO(mEnd(occ, 1)),
@@ -159,7 +165,7 @@ export function createSmallTemplate() {
       { id:13, name:'Permit Review',            type:'bar', color:'#D83968', start: toISO(pmSub), end: toISO(pmRvE) },
       { id:8,  name:'Bidding & Procurement',    type:'bar', color:'#282829', start: toISO(bidS), end: toISO(bidE) },
       { id:9,  name:'Construction',             type:'bar', color:'#6D245D', start: toISO(conS), end: toISO(conE),
-        isEstimate: true, label: 'Estimated Construction Period' },
+        isEstimate: true },
       ...ff.tasks,
       { id:10, name:'As-Built / Closeout',      type:'bar', color:'#282829', start: toISO(clS),  end: toISO(clE) },
       { id:11, name:'Project Occupancy',        type:'milestone', date: toISO(occ) },
@@ -211,7 +217,7 @@ export function createMediumTemplate() {
   return {
     id: generateId(),
     title: '',
-    subtitle: 'Commercial / Institutional Project',
+    notes:    DEFAULT_NOTES,
     date: '', number: '', client: '',
     viewStart:  toISO(new Date(base.getFullYear(), base.getMonth() - 1, 1)),
     viewEnd:    toISO(mEnd(occ, 1)),
@@ -232,7 +238,7 @@ export function createMediumTemplate() {
       { id:16, name:'Permit Review',                 type:'bar', color:'#D83968', start: toISO(pmSub), end: toISO(pmRvE) },
       { id:11, name:'Bidding & Procurement',         type:'bar', color:'#282829', start: toISO(bidS),  end: toISO(bidE) },
       { id:12, name:'Construction',                  type:'bar', color:'#6D245D', start: toISO(conS),  end: toISO(conE),
-        isEstimate: true, label: 'Estimated Construction Period' },
+        isEstimate: true },
       ...ff.tasks,
       { id:13, name:'As-Built / Closeout Documents', type:'bar', color:'#282829', start: toISO(clS),   end: toISO(clE) },
       { id:14, name:'Project Occupancy',             type:'milestone', date: toISO(occ) },
@@ -286,7 +292,7 @@ export function createLargeTemplate() {
   return {
     id: generateId(),
     title: '',
-    subtitle: 'Large / Complex Project',
+    notes:    DEFAULT_NOTES,
     date: '', number: '', client: '',
     viewStart:  toISO(new Date(base.getFullYear(), base.getMonth() - 1, 1)),
     viewEnd:    toISO(mEnd(occ, 1)),
@@ -308,7 +314,7 @@ export function createLargeTemplate() {
       { id:13, name:'Permit Review',                   type:'bar', color:'#D83968', start: toISO(pmRvS), end: toISO(pmRvE) },
       { id:14, name:'Bidding & Procurement',           type:'bar', color:'#282829', start: toISO(bidS),  end: toISO(bidE) },
       { id:16, name:'Construction',                    type:'bar', color:'#6D245D', start: toISO(conS),  end: toISO(conE),
-        isEstimate: true, label: 'Estimated Construction Period' },
+        isEstimate: true },
       ...ff.tasks,
       { id:17, name:'As-Built / Closeout Documents',   type:'bar', color:'#282829', start: toISO(clS),   end: toISO(clE) },
       { id:18, name:'Project Occupancy',               type:'milestone', date: toISO(occ) },

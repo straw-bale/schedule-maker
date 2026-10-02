@@ -8,6 +8,7 @@
   import { parseDate, toISO, monthList } from '$lib/utils/dates.js';
 
   let { data } = $props();
+  let markerLanes = $state(1); // stacked marker lanes reported by GanttPanel
 
   const TASK_COL_W = 252;
   const noop = () => {};
@@ -56,9 +57,6 @@
     <header class="share-hdr">
       <div class="hdr-left">
         <div class="share-title">{project.title || 'Project Schedule'}</div>
-        {#if project.subtitle}
-          <div class="share-sub">{project.subtitle}</div>
-        {/if}
         <div class="share-meta">
           {#each [project.date, project.number, project.client].filter(Boolean) as v, i}
             {#if i > 0}<span class="meta-sep">·</span>{/if}
@@ -72,6 +70,7 @@
     <div class="share-body">
       <div class="share-inner" style:width="{contentW}px">
         <TaskPanel
+          markerLanes={markerLanes}
           tasks={project.tasks}
           onRename={noop}
           onDelete={noop}
@@ -81,6 +80,7 @@
           zoom="month"
         />
         <GanttPanel
+          bind:markerLanes
           tasks={project.tasks}
           viewStart={project.viewStart}
           viewEnd={project.viewEnd}
@@ -117,7 +117,7 @@
   .state-screen {
     display: flex; align-items: center; justify-content: center;
     height: 100vh;
-    font-family: 'Barlow Condensed', sans-serif; font-size: 14px; color: #aaa;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 14px; color: var(--black);
   }
 
   .share-page {
@@ -142,32 +142,26 @@
     text-transform: uppercase; letter-spacing: .06em;
     color: var(--black); line-height: 1.1;
   }
-  .share-sub {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 400; font-size: 11px;
-    text-transform: uppercase; letter-spacing: .1em;
-    color: #aaa; margin-top: 2px;
-  }
   .share-meta {
     display: flex; align-items: center; gap: 2px;
     margin-top: 5px; flex-wrap: wrap;
   }
   .meta-sep {
-    font-size: 9px; color: #ccc; padding: 0 4px;
+    font-size: 11px; color: var(--black); padding: 0 4px;
   }
   .meta-item {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10.5px; color: #999;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px; color: var(--black);
   }
   .share-badge {
     flex-shrink: 0;
     background: var(--off, #f5f5f5);
     border: 1px solid var(--lgray, #e0e0e0);
     border-radius: 3px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 700; font-size: 9px;
+    font-family: 'Barlow', sans-serif;
+    font-weight: 700; font-size: 11px;
     text-transform: uppercase; letter-spacing: .12em;
-    color: #aaa;
+    color: var(--black);
     padding: 4px 10px;
     align-self: center;
   }

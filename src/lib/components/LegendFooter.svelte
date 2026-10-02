@@ -92,7 +92,6 @@
               >{d.text}</span>
             </div>
             <div class="leg-sub">
-              <span class="sub-lbl">Date:</span>
               <input
                 type="date"
                 class="date-inp no-print"
@@ -142,7 +141,6 @@
               >{m.text}</span>
             </div>
             <div class="leg-sub">
-              <span class="sub-lbl">Date:</span>
               <input
                 type="date"
                 class="date-inp no-print"
@@ -193,7 +191,6 @@
               >{e.text}</span>
             </div>
             <div class="leg-sub">
-              <span class="sub-lbl">Date:</span>
               <input
                 type="date"
                 class="date-inp no-print"
@@ -235,7 +232,6 @@
               >{a.text}</span>
             </div>
             <div class="leg-sub">
-              <span class="sub-lbl">Date:</span>
               <input
                 type="date"
                 class="date-inp no-print"
@@ -316,9 +312,9 @@
   .leg-hdr {
     background: var(--black);
     color: #fff;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 700;
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .14em;
     padding: 5px 12px;
@@ -326,14 +322,14 @@
   }
   .leg-items { padding: 6px 10px 8px; flex: 1; overflow-y: auto; }
   .leg-empty {
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-size: 11px;
-    color: #ccc;
+    color: var(--black);
     font-style: italic;
   }
   .note-row { gap: 4px; margin-bottom: 3px; }
   .note-num {
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 12px;
+    font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 12px;
     color: var(--black); min-width: 14px; flex-shrink: 0;
   }
   .note-txt { flex: 1; min-width: 0; white-space: normal; }
@@ -356,9 +352,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 700;
-    font-size: 9px;
+    font-size: 11px;
     color: #fff;
     flex-shrink: 0;
     margin-top: 1px;
@@ -380,9 +376,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 700;
-    font-size: 9px;
+    font-size: 11px;
     background: var(--black);
     color: #fff;
     white-space: nowrap;
@@ -441,22 +437,14 @@
     gap: 4px;
     flex-wrap: wrap;
   }
-  .sub-lbl {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: .07em;
-    color: #bbb;
-    flex-shrink: 0;
-  }
 
   /* Date input */
   .date-inp {
     border: none;
     border-bottom: 1px solid var(--lgray);
     outline: none;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10.5px;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px;
     color: var(--black);
     background: transparent;
     padding: 1px 2px;
@@ -473,9 +461,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 700;
-    font-size: 9px;
+    font-size: 11px;
     color: #fff;
     flex-shrink: 0;
     margin-top: 1px;
@@ -493,7 +481,7 @@
 
   /* Editable text */
   .leg-field {
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-size: 12px;
     color: var(--black);
     outline: none;
@@ -514,7 +502,7 @@
     opacity: 0;
     background: none;
     border: none;
-    color: #ccc;
+    color: var(--black);
     font-size: 11px;
     cursor: pointer;
     padding: 1px 3px;
@@ -529,9 +517,9 @@
     background: none;
     border: none;
     color: var(--blue);
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 600;
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .07em;
     cursor: grab;
@@ -555,8 +543,8 @@
   }
 
   .date-print {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10.5px;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px;
     color: var(--black);
   }
 </style>

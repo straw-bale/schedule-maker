@@ -6,6 +6,7 @@
   import { parseDate, toISO, monthList } from '$lib/utils/dates.js';
 
   let { data } = $props();
+  let markerLanes = $state(1); // stacked marker lanes reported by GanttPanel
 
   const TASK_COL_W = 252;
   const USABLE_W   = { letter: 979, tabloid: 1555 };
@@ -51,13 +52,10 @@
 </script>
 
 {#if project}
-  <div class="preview-pg">
+  <div class="preview-pg" style:min-width="{contentW}px">
 
     <header class="preview-hdr">
       <div class="preview-title">{project.title || 'Project Title'}</div>
-      {#if project.subtitle}
-        <div class="preview-sub">{project.subtitle}</div>
-      {/if}
       {#if project.date || project.number || project.client}
         <div class="preview-meta">
           {#each [project.date, project.number, project.client].filter(Boolean) as v, i}
@@ -71,6 +69,7 @@
     <div class="preview-body">
       <div class="preview-inner" style:width="{contentW}px" style:min-width="{contentW}px">
         <TaskPanel
+          markerLanes={markerLanes}
           tasks={project.tasks}
           onRename={noop}
           onDelete={noop}
@@ -80,6 +79,7 @@
           zoom="month"
         />
         <GanttPanel
+          bind:markerLanes
           tasks={project.tasks}
           viewStart={project.viewStart}
           viewEnd={project.viewEnd}
@@ -121,7 +121,7 @@
     display: flex;
     flex-direction: column;
     background: #fff;
-    min-width: max-content;
+    min-width: 0;
     min-height: 100vh;
   }
 
@@ -137,22 +137,16 @@
     text-transform: uppercase; letter-spacing: .06em;
     color: var(--black); line-height: 1.1;
   }
-  .preview-sub {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 400; font-size: 11px;
-    text-transform: uppercase; letter-spacing: .1em;
-    color: #aaa; margin-top: 2px;
-  }
   .preview-meta {
     display: flex; flex-direction: row; align-items: center;
     flex-wrap: wrap; gap: 0; margin-top: 5px;
   }
   .meta-item {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10.5px; color: #999;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px; color: var(--black);
   }
   .meta-sep {
-    font-size: 9px; color: #ccc; padding: 0 5px; user-select: none;
+    font-size: 11px; color: var(--black); padding: 0 5px; user-select: none;
   }
 
   .preview-body { overflow: visible; flex: 1; }
@@ -167,7 +161,7 @@
     display: flex; align-items: center; justify-content: center;
     height: 300px;
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 13px; color: #aaa;
+    font-size: 13px; color: var(--black);
   }
 
   @media print {

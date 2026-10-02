@@ -282,7 +282,7 @@
     font-size: 14px;
     text-transform: uppercase;
     letter-spacing: .14em;
-    color: #aaa;
+    color: var(--black);
     margin: 0;
   }
   .top-actions { display: flex; gap: 10px; }
@@ -292,7 +292,7 @@
     border: none;
     border-radius: 3px;
     padding: 9px 18px;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 700;
     font-size: 12px;
     text-transform: uppercase;
@@ -303,11 +303,11 @@
   .btn-primary:hover { background: #1A93C8; }
   .btn-secondary {
     background: none;
-    color: #888;
+    color: var(--black);
     border: 1px solid var(--lgray);
     border-radius: 3px;
     padding: 9px 18px;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 700;
     font-size: 12px;
     text-transform: uppercase;
@@ -350,13 +350,13 @@
   }
   .card-client {
     font-size: 11px;
-    color: #888;
+    color: var(--black);
     margin-bottom: 2px;
   }
   .card-num {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10px;
-    color: #bbb;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px;
+    color: var(--black);
     text-transform: uppercase;
     letter-spacing: .06em;
     margin-bottom: 12px;
@@ -370,23 +370,23 @@
     padding-top: 10px;
   }
   .card-dates {
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-size: 11px;
-    color: #aaa;
+    color: var(--black);
   }
   .card-tasks {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10px;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .06em;
-    color: #ccc;
+    color: var(--black);
   }
   .card-delete {
     position: absolute;
     top: 10px; right: 10px;
     background: none;
     border: none;
-    color: #ddd;
+    color: var(--black);
     font-size: 13px;
     cursor: pointer;
     opacity: 0;
@@ -400,7 +400,7 @@
     grid-column: 1 / -1;
     text-align: center;
     padding: 80px 0;
-    color: #bbb;
+    color: var(--black);
     font-family: 'Barlow Condensed', sans-serif;
     font-size: 16px;
     display: flex;
@@ -425,8 +425,8 @@
     color: var(--blue);
   }
   .foot-copy {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10px;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px;
     color: rgba(255,255,255,.25);
     text-transform: uppercase;
     letter-spacing: .1em;
@@ -491,10 +491,10 @@
 
   /* Type label */
   .tm-type {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 700; font-size: 10px;
+    font-family: 'Barlow', sans-serif;
+    font-weight: 700; font-size: 11px;
     text-transform: uppercase; letter-spacing: .16em;
-    color: #bbb; margin-bottom: 10px;
+    color: var(--black); margin-bottom: 10px;
     transition: color .15s;
   }
   .tm-card:hover .tm-type { color: var(--blue); }
@@ -530,13 +530,13 @@
   }
   .tm-desc {
     font-family: 'Barlow', sans-serif;
-    font-size: 10.5px; color: #888; line-height: 1.55;
+    font-size: 11px; color: var(--black); line-height: 1.55;
     flex: 1; margin-bottom: 10px;
   }
   .tm-meta {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
-    color: #bbb;
+    font-family: 'Barlow', sans-serif;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--black);
     border-top: 1px solid var(--lgray); padding-top: 8px;
   }
 </style>

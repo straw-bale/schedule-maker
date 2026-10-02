@@ -1,11 +1,12 @@
 <script>
   const ROW_H = 26;
 
-  let { tasks, onRename, onDelete, onReorder, onAdd, onDragChange, highlightId = null, zoom = 'month' } = $props();
+  let { tasks, onRename, onDelete, onReorder, onAdd, onDragChange, highlightId = null, zoom = 'month', markerLanes = 1 } = $props();
 
   // monthly: year(18) + month(28) + markers(22) = 68px
   // biweek/week: year(18) + mspan(28) + col(22) + markers(22) = 90px
-  let hdrH = $derived(zoom === 'month' ? 60 : 82);
+  // Each extra marker lane (stacked overlapping markers) adds 18px
+  let hdrH = $derived((zoom === 'month' ? 60 : 82) + (markerLanes - 1) * 18);
 
   function initRowDrag(handle) {
     handle.addEventListener('mousedown', e => {
@@ -133,9 +134,9 @@
     display: flex;
     align-items: flex-end;
     padding: 0 12px 8px;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 600;
-    font-size: 9px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .13em;
     color: var(--black);
@@ -164,7 +165,7 @@
 
   .t-drag {
     opacity: 0;
-    color: #bbb;
+    color: var(--black);
     font-size: 13px;
     cursor: grab;
     flex-shrink: 0;
@@ -174,32 +175,40 @@
     letter-spacing: -1px;
   }
   .t-row:hover .t-drag { opacity: 1; }
-  .t-drag:hover { color: #888; }
+  .t-drag:hover { color: var(--black); }
   .t-drag:active { cursor: grabbing; }
 
   .t-name {
     flex: 1;
     font-family: 'Barlow', sans-serif;
     font-weight: 700;
-    font-size: 10.5px;
-    white-space: nowrap;
+    font-size: 11px;
+    /* Wrap long names onto a second line (fits the 26px row), clamp beyond that */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
     outline: none;
     cursor: text;
-    line-height: 1;
+    line-height: 1.1;
   }
   .t-name:focus {
-    white-space: nowrap;
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
     overflow: visible;
-    background: rgba(32,171,226,.1);
+    position: relative;
+    z-index: 2;
+    background: #eaf6fc;
     border-radius: 2px;
     padding: 1px 4px;
   }
   .t-del {
     opacity: 0;
     font-size: 12px;
-    color: #ccc;
+    color: var(--black);
     cursor: pointer;
     flex-shrink: 0;
     padding: 2px 3px;
@@ -210,9 +219,9 @@
 
   .add-btn {
     padding: 7px 12px;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 600;
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .1em;
     color: var(--blue);
@@ -235,7 +244,7 @@
     padding: 0 10px;
     font-family: 'Barlow', sans-serif;
     font-weight: 700;
-    font-size: 10.5px;
+    font-size: 11px;
   }
   :global(.t-drop-spacer) {
     height: 26px;
@@ -249,8 +258,6 @@
   @media print {
     .task-panel  { position: relative; }
     .col-hdr-lbl { position: relative; }
-    /* Allow names to wrap — overflow visible so second line shows below the row */
-    .t-name      { white-space: normal; line-height: 1.3; }
     .t-drag      { display: none !important; }
   }
 </style>

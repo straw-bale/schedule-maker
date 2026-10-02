@@ -10,6 +10,7 @@
     zoom = 'month', showTodayLine = true,
     reorderDraggingId = null, reorderInsertIdx = null,
     colWOverride = null,
+    markerLanes = $bindable(1),
   } = $props();
 
   // Task ID that a reorder gap should appear before (null = no gap, 'end' = after all tasks)
@@ -224,6 +225,38 @@
     if (draggingOverlay?.section === section && draggingOverlay.idx === idx) return draggingOverlay.date;
     return item.date;
   }
+
+  // Markers that would overlap in the markers row are stacked into extra lanes.
+  const LANE_H = 18;
+  let laneOf = $derived.by(() => {
+    const items = [];
+    const add = (section, list, labelFn) => (list ?? []).forEach((it, i) => {
+      const date = overlayDate(section, i, it);
+      if (!date) return;
+      const label = labelFn ? String(labelFn(it, i) ?? '') : null;
+      // Approximate rendered width: pills ~7px per char + padding; approval diamond ~14px
+      const w = label === null ? 14 : Math.max(16, label.length * 7 + 10);
+      items.push({ key: `${section}:${i}`, x: px(date), w });
+    });
+    add('milestones',   legend?.milestones,   m => m.code);
+    add('deliverables', legend?.deliverables, (_, i) => i + 1);
+    add('approvals',    legend?.approvals,    null);
+    add('estimates',    legend?.estimates,    e => e.code);
+    items.sort((a, b) => a.x - b.x);
+    const laneEnds = [];
+    const map = {};
+    for (const it of items) {
+      const left = it.x - it.w / 2;
+      let lane = laneEnds.findIndex(end => left >= end + 3);
+      if (lane === -1) { lane = laneEnds.length; laneEnds.push(0); }
+      laneEnds[lane] = it.x + it.w / 2;
+      map[it.key] = lane;
+    }
+    return { map, count: Math.max(1, laneEnds.length) };
+  });
+  $effect(() => { markerLanes = laneOf.count; });
+  // Vertical center of a marker in its lane (row is 22px for a single lane)
+  const laneTop = (section, i) => `${11 + (laneOf.map[`${section}:${i}`] ?? 0) * LANE_H}px`;
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -262,7 +295,7 @@
       {/if}
 
       <!-- Markers row: draggable milestone & deliverable pills -->
-      <div class="markers-row">
+      <div class="markers-row" style:height="{22 + (laneOf.count - 1) * LANE_H}px">
         {#each (legend?.milestones ?? []) as m, i}
           {@const date = overlayDate('milestones', i, m)}
           {#if date}
@@ -272,6 +305,7 @@
               <div
                 class="ov-pill"
                 style:left="{mpx}px"
+                style:top={laneTop('milestones', i)}
                 onmousedown={(e) => startOverlayDrag(e, 'milestones', i, m.date)}
                 title="{m.text} — drag to reposition"
               >{m.code}</div>
@@ -287,6 +321,7 @@
               <div
                 class="ov-pill ov-del"
                 style:left="{dpx}px"
+                style:top={laneTop('deliverables', i)}
                 onmousedown={(e) => startOverlayDrag(e, 'deliverables', i, d.date)}
                 title="{d.text} — drag to reposition"
               >{i + 1}</div>
@@ -301,6 +336,7 @@
               <div
                 class="ov-approval"
                 style:left="{apx}px"
+                style:top={laneTop('approvals', i)}
                 onmousedown={(e) => startOverlayDrag(e, 'approvals', i, a.date)}
                 title="{a.text} — drag to reposition"
               ></div>
@@ -316,6 +352,7 @@
               <div
                 class="ov-pill"
                 style:left="{epx}px"
+                style:top={laneTop('estimates', i)}
                 style:background={e.color}
                 style:color={isLightColor(e.color) ? 'rgba(0,0,0,.65)' : '#fff'}
                 onmousedown={(ev) => startOverlayDrag(ev, 'estimates', i, e.date)}
@@ -434,9 +471,6 @@
                   ondblclick={(e) => openPopup(task, e.clientX, e.clientY)}
                   onmousedown={(e) => startDrag(e, task, 'move')}
                 >
-                  {#if task.label && !task.hold}
-                    <span class="bar-lbl" class:dk={isLightColor(task.color)}>{task.label}</span>
-                  {/if}
                   {#if rawLeft >= 0}
                     <div class="bar-handle lft" onmousedown={(e) => { e.stopPropagation(); startDrag(e, task, 'left'); }}></div>
                   {/if}
@@ -533,7 +567,7 @@
   .col-row { display: flex; height: 22px; border-bottom: 1px solid var(--black); }
   .col-cell {
     flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 500; font-size: 9px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 500; font-size: 11px;
     color: var(--black); border-right: 1px solid var(--black);
   }
 
@@ -547,23 +581,27 @@
   }
   .ov-pill {
     position: absolute;
-    top: 3px;
-    transform: translateX(-50%);
-    font-family: 'Barlow Condensed', sans-serif;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    box-sizing: border-box;
+    height: 16px;
+    min-width: 16px;
+    line-height: 16px;
+    text-align: center;
+    font-family: 'Barlow', sans-serif;
     font-weight: 700;
-    font-size: 9px;
-    padding: 2px 6px;
-    border-radius: 10px;
+    font-size: 11px;
+    padding: 0 5px;
+    border-radius: 8px;
     cursor: grab;
     white-space: nowrap;
-    box-shadow: 0 1px 4px rgba(0,0,0,.2);
     user-select: none;
     z-index: 20;
-    transition: box-shadow .1s;
+    transition: filter .1s;
     background: var(--black);
     color: #fff;
   }
-  .ov-pill:hover { box-shadow: 0 2px 8px rgba(0,0,0,.28); }
+  .ov-pill:hover { filter: brightness(1.15); }
   .ov-pill:active { cursor: grabbing; }
   .ov-del { background: #D4804A; color: #fff; }
   .ov-approval {
@@ -575,10 +613,9 @@
     cursor: grab;
     user-select: none;
     z-index: 20;
-    box-shadow: 0 1px 4px rgba(0,0,0,.2);
-    transition: box-shadow .1s;
+    transition: filter .1s;
   }
-  .ov-approval:hover { box-shadow: 0 2px 8px rgba(0,0,0,.28); }
+  .ov-approval:hover { filter: brightness(1.15); }
   .ov-approval:active { cursor: grabbing; }
   .ov-appr-line { border-color: var(--blue); }
 
@@ -604,7 +641,7 @@
   .drop-lbl {
     position: absolute; top: 4px; left: 5px;
     background: var(--blue); color: #fff;
-    font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 600;
+    font-family: 'Barlow', sans-serif; font-size: 11px; font-weight: 600;
     padding: 2px 5px; border-radius: 2px; white-space: nowrap;
   }
 
@@ -656,12 +693,6 @@
   .bar.estimate {
     clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 50%, calc(100% - 11px) 100%, 0 100%);
   }
-  .bar-lbl {
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 9.5px;
-    letter-spacing: .03em; color: rgba(255,255,255,.9);
-    white-space: nowrap; overflow: hidden; padding: 0 7px; pointer-events: none; flex: 1; min-width: 0;
-  }
-  .bar-lbl.dk { color: rgba(0,0,0,.6); }
   .bar-handle {
     position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 5;
   }
@@ -677,7 +708,7 @@
   .ms-dot:active { cursor: grabbing; }
   .ms-lbl {
     position: absolute; top: 50%; transform: translateY(-50%);
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 9px;
+    font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 11px;
     color: var(--black); white-space: nowrap; padding-left: 10px; pointer-events: none;
   }
 
@@ -686,7 +717,7 @@
     position: absolute; top: 50%; transform: translateY(-50%);
     width: 18px; height: 18px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 8px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 10px;
     color: #fff; z-index: 7; pointer-events: none;
   }
   .bdg-del { background: #D4804A; }
@@ -703,11 +734,11 @@
   }
   .dp-close {
     position: absolute; top: 8px; right: 10px;
-    cursor: pointer; color: #bbb; font-size: 14px; line-height: 1;
+    cursor: pointer; color: var(--black); font-size: 14px; line-height: 1;
   }
   .dp-close:hover { color: var(--black); }
   .dp-task-name { font-weight: 700; font-size: 12px; margin-bottom: 10px; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .dp-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: #aaa; margin-bottom: 3px; margin-top: 8px; }
+  .dp-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--black); margin-bottom: 3px; margin-top: 8px; }
   .dp input[type="date"] {
     width: 100%; border: 1px solid var(--lgray); border-radius: 2px;
     padding: 5px 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; outline: none;

@@ -274,8 +274,8 @@ ${JSON.stringify(project, null, 2)}`;
     line-height: 1.6;
     max-width: 93%;
   }
-  .ai-hint  { background: var(--off); color: #888; font-style: italic; border-left: 3px solid var(--blue); font-size: 11px; }
-  .ai-hint strong { font-style: normal; color: #666; }
+  .ai-hint  { background: var(--off); color: var(--black); font-style: italic; border-left: 3px solid var(--blue); font-size: 11px; }
+  .ai-hint strong { font-style: normal; color: var(--black); }
   .ai-user  { background: var(--blue); color: #fff; align-self: flex-end; }
   .ai-bot   { background: var(--off); color: var(--black); align-self: flex-start; border-left: 3px solid #D4B040; }
   .ai-error { border-left-color: var(--mag); color: var(--mag); }
@@ -316,14 +316,14 @@ ${JSON.stringify(project, null, 2)}`;
   .ai-chip-name {
     font-family: 'Barlow', sans-serif;
     font-size: 11px;
-    color: #555;
+    color: var(--black);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .ai-chip-rm {
     background: none; border: none; cursor: pointer;
-    color: #bbb; font-size: 11px; padding: 0; flex-shrink: 0;
+    color: var(--black); font-size: 11px; padding: 0; flex-shrink: 0;
     transition: color .1s; line-height: 1;
   }
   .ai-chip-rm:hover { color: var(--mag); }
@@ -362,7 +362,7 @@ ${JSON.stringify(project, null, 2)}`;
   }
   .ai-attach-btn {
     background: #fff;
-    color: #aaa;
+    color: var(--black);
     border: 1px solid var(--lgray);
     border-radius: 3px;
     padding: 5px 10px;

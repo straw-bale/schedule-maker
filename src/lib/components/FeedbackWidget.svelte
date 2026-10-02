@@ -86,7 +86,7 @@
     border: none;
     border-radius: 3px;
     padding: 7px 14px;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
@@ -119,7 +119,7 @@
   }
   .fb-close {
     background: none; border: none; cursor: pointer;
-    color: #bbb; font-size: 12px; line-height: 1; padding: 0;
+    color: var(--black); font-size: 12px; line-height: 1; padding: 0;
     transition: color .1s;
   }
   .fb-close:hover { color: var(--black); }
@@ -129,7 +129,7 @@
     border: 1px solid var(--lgray);
     border-radius: 3px;
     padding: 7px 8px;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-size: 12px;
     color: var(--black);
     resize: none;
@@ -143,7 +143,7 @@
 
   .fb-err {
     margin: 4px 10px 0;
-    font-size: 10px; color: #c0392b;
+    font-size: 11px; color: #c0392b;
   }
 
   .fb-foot {
@@ -151,8 +151,8 @@
     padding: 8px 10px 10px;
   }
   .fb-submit {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 700; font-size: 10px;
+    font-family: 'Barlow', sans-serif;
+    font-weight: 700; font-size: 11px;
     text-transform: uppercase; letter-spacing: .1em;
     background: var(--black); border: none;
     color: #fff; border-radius: 3px;

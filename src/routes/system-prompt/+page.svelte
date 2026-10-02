@@ -112,7 +112,7 @@
     color: rgba(255,255,255,.6);
     border-radius: 3px;
     padding: 7px 14px;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .08em;
@@ -163,17 +163,17 @@
     border-bottom: 1px solid var(--lgray);
   }
   .sp-body :global(h3) {
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-weight: 700;
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: .08em;
-    color: #888;
+    color: var(--black);
     margin: 18px 0 6px;
   }
   .sp-body :global(p) {
     font-size: 13.5px;
-    color: #444;
+    color: var(--black);
     line-height: 1.7;
     margin: 0 0 12px;
   }
@@ -188,12 +188,12 @@
   }
   .sp-body :global(li) {
     font-size: 13px;
-    color: #444;
+    color: var(--black);
     line-height: 1.65;
     margin-bottom: 4px;
   }
   .sp-body :global(strong) { color: var(--black); font-weight: 700; }
-  .sp-body :global(em) { font-style: italic; color: #555; }
+  .sp-body :global(em) { font-style: italic; color: var(--black); }
   .sp-body :global(code) {
     font-family: 'Courier New', monospace;
     font-size: 11.5px;
@@ -222,9 +222,9 @@
     background: var(--off);
   }
   .sp-foot p {
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Barlow', sans-serif;
     font-size: 11px;
-    color: #aaa;
+    color: var(--black);
     margin: 0;
   }
   .sp-foot code {
