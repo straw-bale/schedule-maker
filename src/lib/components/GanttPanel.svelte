@@ -1,5 +1,6 @@
 <script>
   import { parseDate, toISO, timeColumns, ZOOM_COL_W, totalDays, dateToPx, dateToPxMonth, pxToDateMonth, dateToPxPeriod, pxToDatePeriod, isLightColor, MONTHS_SHORT, toWeekday } from '$lib/utils/dates.js';
+  import { pointerDrag } from '$lib/utils/pointer.js';
 
   const ROW_H = 26;
 
@@ -129,8 +130,9 @@
   function openPopup(task, cx, cy) {
     popupTask = { ...task };
     const vw = window.innerWidth, vh = window.innerHeight;
-    popupX = cx + 10 + 230 > vw ? cx - 240 : cx + 10;
-    popupY = cy + 8 + 210 > vh ? cy - 215 : cy + 8;
+    const pw = 240, ph = 260;
+    popupX = Math.max(8, Math.min(cx + 10 + pw > vw ? cx - pw : cx + 10, vw - pw - 8));
+    popupY = Math.max(8, Math.min(cy + 8 + ph > vh ? cy - ph : cy + 8, vh - ph - 8));
   }
   function closePopup() { popupTask = null; }
   function onPopupChange(field, val) {
@@ -139,85 +141,78 @@
     onTaskUpdate(popupTask.id, { [field]: val });
   }
 
-  // Bar drag (move / left-resize / right-resize)
+  // Bar drag (move / left-resize / right-resize). On touch: long-press to drag, tap to edit.
   function startDrag(e, task, mode) {
-    if (e.button !== 0) return;
-    e.preventDefault(); e.stopPropagation();
+    e.stopPropagation();
 
-    const pxPerDay = ganttWidth / totalDays(viewStart, viewEnd);
-    const startX   = e.clientX;
-    draggingId   = task.id;
-    draggingTask = { ...task };
-    onDraggingChange?.(task.id);
-
+    const pxPerDay  = ganttWidth / totalDays(viewStart, viewEnd);
+    const startX    = e.clientX;
     const origStart = task.start;
     const origEnd   = task.end;
     const origDate  = task.date;
 
-    function onMove(ev) {
-      const dd    = Math.round((ev.clientX - startX) / pxPerDay);
-      const draft = { ...draggingTask };
+    pointerDrag(e, {
+      onStart() {
+        draggingId   = task.id;
+        draggingTask = { ...task };
+        onDraggingChange?.(task.id);
+      },
+      onMove(ev) {
+        const dd    = Math.round((ev.clientX - startX) / pxPerDay);
+        const draft = { ...draggingTask };
 
-      if (task.type === 'milestone') {
-        const d = parseDate(origDate); d.setDate(d.getDate() + dd);
-        draft.date = toWeekday(toISO(d));
-      } else if (mode === 'move') {
-        const ns = parseDate(origStart); ns.setDate(ns.getDate() + dd);
-        const ne = parseDate(origEnd);   ne.setDate(ne.getDate() + dd);
-        draft.start = toISO(ns); draft.end = toISO(ne);
-      } else if (mode === 'left') {
-        const ns = parseDate(origStart); ns.setDate(ns.getDate() + dd);
-        if (ns < parseDate(origEnd)) draft.start = toISO(ns);
-      } else if (mode === 'right') {
-        const ne = parseDate(origEnd); ne.setDate(ne.getDate() + dd);
-        if (ne > parseDate(origStart)) draft.end = toISO(ne);
-      }
-      draggingTask = draft;
-    }
-
-    function onUp() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      if (draggingTask) {
+        if (task.type === 'milestone') {
+          const d = parseDate(origDate); d.setDate(d.getDate() + dd);
+          draft.date = toWeekday(toISO(d));
+        } else if (mode === 'move') {
+          const ns = parseDate(origStart); ns.setDate(ns.getDate() + dd);
+          const ne = parseDate(origEnd);   ne.setDate(ne.getDate() + dd);
+          draft.start = toISO(ns); draft.end = toISO(ne);
+        } else if (mode === 'left') {
+          const ns = parseDate(origStart); ns.setDate(ns.getDate() + dd);
+          if (ns < parseDate(origEnd)) draft.start = toISO(ns);
+        } else if (mode === 'right') {
+          const ne = parseDate(origEnd); ne.setDate(ne.getDate() + dd);
+          if (ne > parseDate(origStart)) draft.end = toISO(ne);
+        }
+        draggingTask = draft;
+      },
+      onEnd() {
         const patch = task.type === 'milestone'
           ? { date: draggingTask.date }
           : { start: draggingTask.start, end: draggingTask.end };
-        onTaskUpdate(task.id, patch);
-      }
-      draggingId = null;
-      draggingTask = null;
-      onDraggingChange?.(null);
-    }
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+        const changed = task.type === 'milestone'
+          ? patch.date !== origDate
+          : patch.start !== origStart || patch.end !== origEnd;
+        if (changed) onTaskUpdate(task.id, patch);
+        draggingId = null;
+        draggingTask = null;
+        onDraggingChange?.(null);
+      },
+      // Touch has no reliable double-click — a tap opens the date/color popup
+      onTap(ev) { openPopup(task, ev.clientX, ev.clientY); },
+    });
   }
 
   // Legend overlay drag (milestones / deliverables)
   function startOverlayDrag(e, section, idx, origDate) {
-    if (e.button !== 0) return;
-    e.preventDefault(); e.stopPropagation();
-
-    draggingOverlay = { section, idx, date: origDate };
+    e.stopPropagation();
     const origPx = px(origDate);
     const startX = e.clientX;
 
-    function onMove(ev) {
-      const newPx = Math.max(0, Math.min(ganttWidth, origPx + (ev.clientX - startX)));
-      draggingOverlay = { section, idx, date: toWeekday(pxToDate(newPx)) };
-    }
-
-    function onUp() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      if (draggingOverlay && onLegendItemUpdate) {
-        onLegendItemUpdate(draggingOverlay.section, draggingOverlay.idx, { date: draggingOverlay.date });
-      }
-      draggingOverlay = null;
-    }
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    pointerDrag(e, {
+      onStart() { draggingOverlay = { section, idx, date: origDate }; },
+      onMove(ev) {
+        const newPx = Math.max(0, Math.min(ganttWidth, origPx + (ev.clientX - startX)));
+        draggingOverlay = { section, idx, date: toWeekday(pxToDate(newPx)) };
+      },
+      onEnd() {
+        if (draggingOverlay && draggingOverlay.date !== origDate && onLegendItemUpdate) {
+          onLegendItemUpdate(draggingOverlay.section, draggingOverlay.idx, { date: draggingOverlay.date });
+        }
+        draggingOverlay = null;
+      },
+    });
   }
 
   // Get effective date for an overlay item (uses drag draft during drag)
@@ -306,7 +301,7 @@
                 class="ov-pill"
                 style:left="{mpx}px"
                 style:top={laneTop('milestones', i)}
-                onmousedown={(e) => startOverlayDrag(e, 'milestones', i, m.date)}
+                onpointerdown={(e) => startOverlayDrag(e, 'milestones', i, m.date)}
                 title="{m.text} — drag to reposition"
               >{m.code}</div>
             {/if}
@@ -322,7 +317,7 @@
                 class="ov-pill ov-del"
                 style:left="{dpx}px"
                 style:top={laneTop('deliverables', i)}
-                onmousedown={(e) => startOverlayDrag(e, 'deliverables', i, d.date)}
+                onpointerdown={(e) => startOverlayDrag(e, 'deliverables', i, d.date)}
                 title="{d.text} — drag to reposition"
               >{i + 1}</div>
             {/if}
@@ -337,7 +332,7 @@
                 class="ov-approval"
                 style:left="{apx}px"
                 style:top={laneTop('approvals', i)}
-                onmousedown={(e) => startOverlayDrag(e, 'approvals', i, a.date)}
+                onpointerdown={(e) => startOverlayDrag(e, 'approvals', i, a.date)}
                 title="{a.text} — drag to reposition"
               ></div>
             {/if}
@@ -355,7 +350,7 @@
                 style:top={laneTop('estimates', i)}
                 style:background={e.color}
                 style:color={isLightColor(e.color) ? 'rgba(0,0,0,.65)' : '#fff'}
-                onmousedown={(ev) => startOverlayDrag(ev, 'estimates', i, e.date)}
+                onpointerdown={(ev) => startOverlayDrag(ev, 'estimates', i, e.date)}
                 title="{e.text} — drag to reposition"
               >{e.code}</div>
             {/if}
@@ -449,7 +444,7 @@
                   <div class="ms-lbl" style:left="{mpx + 8}px">{task.label}</div>
                 {/if}
                 <div class="ms-dot" style:left="{mpx}px"
-                  onmousedown={(e) => startDrag(e, task, 'move')}></div>
+                  onpointerdown={(e) => startDrag(e, task, 'move')}></div>
               {/if}
 
             {:else}
@@ -469,12 +464,12 @@
                   style:width="{width}px"
                   style:background={task.color}
                   ondblclick={(e) => openPopup(task, e.clientX, e.clientY)}
-                  onmousedown={(e) => startDrag(e, task, 'move')}
+                  onpointerdown={(e) => startDrag(e, task, 'move')}
                 >
                   {#if rawLeft >= 0}
-                    <div class="bar-handle lft" onmousedown={(e) => { e.stopPropagation(); startDrag(e, task, 'left'); }}></div>
+                    <div class="bar-handle lft" onpointerdown={(e) => startDrag(e, task, 'left')}></div>
                   {/if}
-                  <div class="bar-handle rgt" onmousedown={(e) => { e.stopPropagation(); startDrag(e, task, 'right'); }}></div>
+                  <div class="bar-handle rgt" onpointerdown={(e) => startDrag(e, task, 'right')}></div>
                 </div>
 
 
@@ -509,8 +504,9 @@
 
 <!-- Date popup -->
 {#if popupTask}
+  <!-- Closes on press, not click: the click that follows a touch tap would otherwise close it at once -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="dp-backdrop" onclick={closePopup}></div>
+  <div class="dp-backdrop" onpointerdown={closePopup}></div>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="dp" style:left="{popupX}px" style:top="{popupY}px">
     <div class="dp-close" onclick={closePopup}>✕</div>
@@ -753,6 +749,15 @@
   }
   .dp-swatch:hover { transform: scale(1.15); }
   .dp-swatch.dp-swatch-active { border-color: var(--black); }
+
+  /* Touch: no long-press callout/selection on draggable marks; bigger grips & popup controls */
+  .bar, .ms-dot, .ov-pill, .ov-approval { -webkit-touch-callout: none; -webkit-user-select: none; }
+  @media (pointer: coarse) {
+    .bar-handle { width: 12px; }
+    .dp input[type="date"] { font-size: 16px; padding: 7px 8px; }
+    .dp-swatch { width: 30px; height: 30px; }
+    .dp-close { font-size: 18px; padding: 4px; top: 4px; right: 6px; }
+  }
 
   @media print {
     .time-hdr    { position: relative; z-index: auto; }

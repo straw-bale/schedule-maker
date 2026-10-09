@@ -1,10 +1,8 @@
 <script>
-  import systemPromptTemplate from '$lib/data/system-prompt.md?raw';
-
-  const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_KEY ?? '';
-
-  const MAX_IMAGE_BYTES = 5  * 1024 * 1024;  // 5 MB — API hard limit
-  const MAX_PDF_BYTES   = 10 * 1024 * 1024;  // 10 MB practical limit (API allows 32 MB but gets slow)
+  // Requests go through our /api/ai endpoint, which holds the API key server-side.
+  // Vercel caps request bodies at 4.5 MB and base64 adds ~33%, so files max out at 3 MB.
+  const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+  const MAX_PDF_BYTES   = 3 * 1024 * 1024;
 
   let { open = false, project = null, onApplyChanges, onClose } = $props();
 
@@ -15,13 +13,6 @@
   let fileInputEl = $state(null);
   let attachment  = $state(null);  // { base64, mediaType, name }
   let attachError = $state('');
-
-  function buildSystemPrompt() {
-    return `${systemPromptTemplate}
-
-## Current Project
-${JSON.stringify(project, null, 2)}`;
-  }
 
   async function handleFileSelect(e) {
     const file = e.target.files?.[0];
@@ -34,8 +25,8 @@ ${JSON.stringify(project, null, 2)}`;
 
     if (file.size > limit) {
       attachError = isPdf
-        ? 'PDF too large (max 10 MB) — try a screenshot of the key pages instead.'
-        : 'Image too large (max 5 MB).';
+        ? 'PDF too large (max 3 MB) — try a screenshot of the key pages instead.'
+        : 'Image too large (max 3 MB).';
       return;
     }
 
@@ -89,29 +80,19 @@ ${JSON.stringify(project, null, 2)}`;
         userContent = text;
       }
 
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      const resp = await fetch('/api/ai', {
         method: 'POST',
-        headers: {
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 2048,
-          system: buildSystemPrompt(),
+          project,
           messages: [...history, { role: 'user', content: userContent }],
         }),
       });
 
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.error?.message ?? `HTTP ${resp.status}`);
-      }
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error ?? `HTTP ${resp.status}`);
 
-      const data = await resp.json();
-      const raw  = data.content?.[0]?.text ?? '';
+      const raw  = data.text ?? '';
 
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -387,6 +368,17 @@ ${JSON.stringify(project, null, 2)}`;
   }
   .ai-send-btn:hover:not(:disabled) { background: #1A93C8; }
   .ai-send-btn:disabled { opacity: .45; cursor: default; }
+
+  .ai-close-btn { padding: 6px; margin: -6px; }
+
+  /* Phones: full-screen panel; 16px inputs stop iOS from zooming on focus */
+  @media screen and (max-width: 640px) {
+    .ai-sidebar { width: 100%; height: 100dvh; bottom: auto; border-left: none; }
+    .ai-bubble  { font-size: 14px; }
+    .ai-hint    { font-size: 13px; }
+    .ai-input   { font-size: 16px; }
+    .ai-close-btn { font-size: 20px; color: rgba(255,255,255,.7); }
+  }
 
   @media print { .ai-sidebar { display: none !important; } }
 </style>

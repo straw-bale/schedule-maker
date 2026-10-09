@@ -1,7 +1,9 @@
 <script>
+  import { pointerDrag } from '$lib/utils/pointer.js';
+
   const ROW_H = 26;
 
-  let { tasks, onRename, onDelete, onReorder, onAdd, onDragChange, highlightId = null, zoom = 'month', markerLanes = 1 } = $props();
+  let { tasks, onRename, onDelete, onReorder, onAdd, onDragChange, highlightId = null, zoom = 'month', markerLanes = 1, width = 252, readonly = false } = $props();
 
   // monthly: year(18) + month(28) + markers(22) = 68px
   // biweek/week: year(18) + mspan(28) + col(22) + markers(22) = 90px
@@ -9,9 +11,9 @@
   let hdrH = $derived((zoom === 'month' ? 60 : 82) + (markerLanes - 1) * 18);
 
   function initRowDrag(handle) {
-    handle.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      e.preventDefault(); e.stopPropagation();
+    handle.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.stopPropagation();
 
       const list    = handle.closest('.task-list');
       const rowEl   = handle.closest('.t-row');
@@ -64,7 +66,7 @@
         onDragChange?.(draggingTaskId, insertAt);
       }
 
-      function onMove(ev) {
+      function move(ev) {
         if (!dragActivated) {
           if (Math.abs(ev.clientY - e.clientY) < 4) return;
           activate();
@@ -73,9 +75,7 @@
         updateSpacerPos(ev.clientY);
       }
 
-      function onUp() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
+      function end() {
         onDragChange?.(null, null);
         if (!dragActivated) return;
         ghost.remove();
@@ -86,8 +86,8 @@
         if (insertAt !== taskIdx) onReorder(taskIdx, insertAt);
       }
 
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+      // Handle has touch-action: none, so touch drags start immediately
+      pointerDrag(e, { holdMs: 0, onMove: move, onEnd: end, onTap: end });
     });
   }
 
@@ -95,32 +95,37 @@
 </script>
 
 
-<div class="task-panel">
+<div class="task-panel" class:readonly style:width="{width}px">
   <div class="col-hdr-lbl" style:height="{hdrH}px">Tasks</div>
 
   <div class="task-list">
     {#each tasks as task, i (task.id)}
       <div class="t-row" class:t-highlight={task.id === highlightId} data-id={task.id}>
-        <div class="t-drag" title="Drag to reorder" use:mountDrag>⠿</div>
+        {#if !readonly}
+          <div class="t-drag" title="Drag to reorder" use:mountDrag>⠿</div>
+        {/if}
 
         <div
           class="t-name"
-          contenteditable="true"
+          contenteditable={!readonly}
           spellcheck="false"
           onblur={(e) => onRename(task.id, e.target.textContent.trim() || task.name)}
           onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }}
         >{task.name}</div>
-        <div class="t-del no-print" title="Remove" onclick={() => onDelete(task.id)}>✕</div>
+        {#if !readonly}
+          <div class="t-del no-print" title="Remove" onclick={() => onDelete(task.id)}>✕</div>
+        {/if}
       </div>
     {/each}
   </div>
 
-  <div class="add-btn no-print" onclick={onAdd}>+ Add Task</div>
+  {#if !readonly}
+    <div class="add-btn no-print" onclick={onAdd}>+ Add Task</div>
+  {/if}
 </div>
 
 <style>
   .task-panel {
-    width: 252px;
     flex-shrink: 0;
     border-right: 2px solid var(--black);
     display: flex;
@@ -177,6 +182,8 @@
   .t-row:hover .t-drag { opacity: 1; }
   .t-drag:hover { color: var(--black); }
   .t-drag:active { cursor: grabbing; }
+  .t-drag { touch-action: none; -webkit-touch-callout: none; }
+  .readonly .t-name { cursor: default; }
 
   .t-name {
     flex: 1;
@@ -253,6 +260,15 @@
     border-bottom: 1px solid var(--lgray);
     pointer-events: none;
     flex-shrink: 0;
+  }
+
+  /* Touch screens have no hover — keep row controls visible and easier to hit */
+  @media (hover: none) {
+    .t-drag, .t-del { opacity: .45; }
+    .t-row { padding: 0 6px; gap: 3px; }
+    .t-drag { padding: 4px 4px 4px 2px; font-size: 14px; }
+    .t-del  { padding: 4px 5px; }
+    .add-btn { padding: 11px 12px; }
   }
 
   @media print {

@@ -14,8 +14,11 @@
     tabloid: { w: 1632, h: 1056, usableW: 1555, label: '11 × 17 in'  },
   };
 
-  // Preview pane is 440px wide; iframe is the full paper size scaled to fit.
-  const PREVIEW_W = 880;
+  // Preview pane is up to 880px wide (narrower on small screens); iframe is the
+  // full paper size scaled to fit. Below 760px the options stack under the preview.
+  let innerW    = $state(window.innerWidth);
+  let stacked   = $derived(innerW < 760);
+  let PREVIEW_W = $derived(Math.max(240, Math.min(880, stacked ? innerW - 34 : innerW * 0.95 - 192)));
 
   let paper      = $state('tabloid');
   let showToday  = $state(true);
@@ -53,7 +56,7 @@
   }
 </script>
 
-<svelte:window onkeydown={(e) => { if (open && e.key === 'Escape') onClose?.(); }} />
+<svelte:window bind:innerWidth={innerW} onkeydown={(e) => { if (open && e.key === 'Escape') onClose?.(); }} />
 
 {#if open}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -68,11 +71,11 @@
       </div>
 
       <!-- Body: preview (left) + options (right) -->
-      <div class="panel-body">
+      <div class="panel-body" class:stacked>
 
         <!-- Preview -->
         <div class="preview-col">
-          <div class="preview-bg" style:height="{previewH}px">
+          <div class="preview-bg" style:width="{PREVIEW_W}px" style:height="{previewH}px">
             <div class="preview-paper"
               style:width="{PREVIEW_W}px"
               style:height="{previewH}px">
@@ -207,7 +210,6 @@
   .preview-bg {
     background: #e8e8e8;
     display: flex; align-items: flex-start; justify-content: center;
-    width: 880px;
     padding: 0;
     overflow: hidden;
   }
@@ -283,6 +285,20 @@
     accent-color: var(--blue); flex-shrink: 0;
   }
   .opt-lbl { font-weight: 500; }
+
+  /* Narrow screens: options below the preview, whole body scrolls */
+  .panel-body.stacked { flex-direction: column; overflow-y: auto; }
+  .stacked .preview-col { border-right: none; border-bottom: 1px solid var(--lgray); }
+  .stacked .opts-col { width: auto; overflow: visible; }
+  .stacked .paper-btns { flex-direction: row; }
+  .stacked .paper-btn { flex: 1; text-align: center; padding: 9px; }
+
+  @media (pointer: coarse) {
+    .opt-row input[type="checkbox"] { width: 20px; height: 20px; }
+    .opt-row { font-size: 14px; padding: 6px 0; }
+    .btn-cancel, .btn-print { padding: 11px 16px; }
+    .close-btn { font-size: 18px; padding: 4px; margin: -4px; }
+  }
 
   /* Footer */
   .panel-foot {

@@ -1,5 +1,9 @@
 <script>
   import { supabase } from '$lib/supabase.js';
+  import { page } from '$app/state';
+
+  // Shared links are for clients — keep the widget out of their way on phones
+  let onShare = $derived(page.url.pathname.startsWith('/share/'));
 
   let open    = $state(false);
   let message = $state('');
@@ -28,7 +32,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="fb-root no-print" onkeydown={handleKeydown}>
+<div class="fb-root no-print" class:on-share={onShare} onkeydown={handleKeydown}>
 
   {#if open}
     <div class="fb-card">
@@ -161,6 +165,15 @@
   }
   .fb-submit:hover:not(:disabled) { background: var(--blue); }
   .fb-submit:disabled { opacity: .4; cursor: default; }
+
+  @media screen and (max-width: 640px) {
+    .fb-root    { bottom: 10px; right: 10px; }
+    .fb-trigger { padding: 6px 10px; font-size: 11px; opacity: .9; }
+    .fb-card    { width: calc(100vw - 20px); }
+    .fb-msg     { font-size: 16px; }
+    .fb-close   { font-size: 16px; padding: 4px; margin: -4px; }
+    .fb-root.on-share { display: none; }
+  }
 
   .fb-sent {
     padding: 18px 12px;

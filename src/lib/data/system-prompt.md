@@ -79,28 +79,20 @@ Estimate legend badge chips (SD, DD, etc.) use `#00914D` (lime green) — this a
 - Schematic Design
 - Design Development
 
-### Approvals
+### AHJ Approvals
 
 - Permit Approval
-- FF&E Purchase Order
 
 ### Permitting Phase
 
 When adding permitting to a schedule, insert these tasks in order after Final Construction Documents (CDs) and before Bidding:
 
 1. **Permit Submission** — milestone on the day CDs are issued
-2. **Permit Review** — bar task, typically 6–12 weeks, color `#D83968` (magenta); overlaps with Bidding start
-3. **Permit Approval** — update the object in the Approvals legend at the end of Permit Review
+2. **Permit Review** — bar task, typically 6–12 weeks, color #A0522D (brown); overlaps with Bidding start
+3. **Permit Approval** — update the object in the AHJ Approvals at the end of Permit Review
 
 If the user asks to "add permitting" or "add a permit phase," add all three tasks using insertAfterId to place them after the CD/Final Construction Documents task and before Bidding.
 
-### Furniture (FF&E)
+### Furniture
 
-FF&E (furniture, fixtures & equipment) runs as its own track alongside the building design and construction. When adding FF&E, add these items and place the three bars together after Construction (before As-Built / Closeout):
-
-1. **FF&E Design & Specification** — bar, lime `#00914D`; starts with Design Development and ends when Construction Documents are complete
-2. **FF&E Purchase Order** — not a task; add it as an entry in the `approvals` legend section. Typically issued ~16 weeks before installation, and no sooner than 2 weeks after CDs are complete
-3. **FF&E Lead Time & Procurement** — bar, black `#282829`; from the Purchase Order date to the start of installation. Typical lead times: 12–16 weeks for standard furniture, 16–24 weeks for custom or imported pieces
-4. **FF&E Installation** — bar, berry `#6D245D`; the last 2–4 weeks of Construction, finishing by Substantial Completion / occupancy
-
-If the construction end date moves, move FF&E Installation, Lead Time & Procurement and the Purchase Order with it.
+Add info on timelines for furniture selection and lead times

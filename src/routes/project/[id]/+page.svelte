@@ -7,6 +7,7 @@
   import AiSidebar    from '$lib/components/AiSidebar.svelte';
   import PrintPanel   from '$lib/components/PrintPanel.svelte';
   import { goto } from '$app/navigation';
+  import { pointerDrag } from '$lib/utils/pointer.js';
 
   let { data } = $props();
   let markerLanes = $state(1); // stacked marker lanes reported by GanttPanel
@@ -42,7 +43,10 @@
   let highlightTaskId  = $state(null);  // briefly highlights a Gantt row on click-to-link
 
   // Gantt geometry for date-from-x computation
-  const TASK_COL_W = 252;
+  const MOBILE_W   = 640;
+  let innerW       = $state(window.innerWidth);
+  let isMobile     = $derived(innerW < MOBILE_W);
+  let TASK_COL_W   = $derived(isMobile ? 140 : 252);
   let schW        = $state(0);
   let trueRange  = $derived(project ? projectDateRange(project.tasks) : { start: null, end: null });
   let trueStart  = $derived(trueRange.start);
@@ -86,59 +90,35 @@
   }
 
   // Shared drag engine: hold-and-drag OR click-to-attach (click again to drop).
-  // If the mouse moves before release it's a standard drag; a quick click switches to
-  // sticky mode where the ghost follows the cursor until the next click or Escape.
-  function startLegendDrag(ghost, initX, initY, onDrop) {
+  // If the pointer moves before release it's a standard drag; a quick click/tap switches to
+  // sticky mode where the ghost follows the cursor until the next click/tap or Escape.
+  // Legend chips have touch-action: none, so touch drags start immediately too.
+  function startLegendDrag(ghost, e, onDrop) {
+    const origin = e.currentTarget;
     let moved = false;
-    ghost.style.left = initX + 'px';
-    ghost.style.top  = initY + 'px';
-    document.body.appendChild(ghost);
 
-    function onMove(e) {
-      ghost.style.left = e.clientX + 'px';
-      ghost.style.top  = e.clientY + 'px';
-      dropDate = isOverGantt(e.clientX, e.clientY) ? xToDate(e.clientX) : null;
-      moved = true;
+    function place(ev) {
+      ghost.style.left = ev.clientX + 'px';
+      ghost.style.top  = ev.clientY + 'px';
+      dropDate = isOverGantt(ev.clientX, ev.clientY) ? xToDate(ev.clientX) : null;
     }
 
-    function cleanup() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup',   onUp);
-      document.removeEventListener('mousedown', onStickyDrop);
-      document.removeEventListener('keydown',   onKey);
-      ghost.remove();
-      dropDate         = null;
-      draggingLegendMs = null;
-    }
-
-    function onUp(e) {
-      if (moved) {
-        // Hold-and-drag completed — drop where released.
-        const date = dropDate;
-        cleanup();
-        if (isOverGantt(e.clientX, e.clientY) && date && project) onDrop(date);
-      } else {
-        // Quick click — switch to sticky mode; next mousedown drops.
-        document.removeEventListener('mouseup', onUp);
-        requestAnimationFrame(() => {
-          document.addEventListener('mousedown', onStickyDrop);
-          document.addEventListener('keydown',   onKey);
-        });
-      }
-    }
-
-    function onStickyDrop(e) {
-      const date = dropDate;
-      cleanup();
-      if (isOverGantt(e.clientX, e.clientY) && date && project) onDrop(date);
-    }
-
-    function onKey(e) {
-      if (e.key === 'Escape') cleanup();
-    }
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup',   onUp);
+    pointerDrag(e, {
+      onStart() { document.body.appendChild(ghost); place(e); },
+      onMove(ev) {
+        place(ev);
+        if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) > 6) moved = true;
+      },
+      onEnd(ev) {
+        if (!moved) return startStickyDrag(ghost, ev.clientX, ev.clientY, onDrop, { origin });
+        const date = isOverGantt(ev.clientX, ev.clientY) ? xToDate(ev.clientX) : null;
+        ghost.remove();
+        dropDate         = null;
+        draggingLegendMs = null;
+        if (date && project) onDrop(date);
+      },
+      holdMs: 0,
+    });
   }
 
   const GHOST_CSS = `
@@ -150,41 +130,49 @@
     transform:translate(-50%,-50%);
   `;
 
-  // Sticky-only drag for "+ Add" buttons: ghost immediately follows cursor,
-  // next click places it (on Gantt for date-positioned items). Escape cancels.
-  // Uses 'click' (not 'mousedown') as the drop trigger so it never catches
-  // the same click that launched the drag. For items with no Gantt position,
+  // Sticky drag: ghost follows the cursor, next click/tap places it (on the Gantt for
+  // date-positioned items). Escape cancels. Dropping on 'click' (not press) means a
+  // touch swipe can still scroll the schedule to find the spot first, and the click
+  // that launched the drag is ignored via `origin`. For items with no Gantt position,
   // pass anyDrop: true.
-  function startStickyDrag(ghost, x, y, onDrop, { anyDrop = false } = {}) {
+  function startStickyDrag(ghost, x, y, onDrop, { anyDrop = false, origin = null } = {}) {
     ghost.style.left = x + 'px';
     ghost.style.top  = y + 'px';
     document.body.appendChild(ghost);
 
     function onMove(e) {
+      if (e.pointerType === 'touch') return; // touch: ghost waits where it is until the tap
       ghost.style.left = e.clientX + 'px';
       ghost.style.top  = e.clientY + 'px';
       if (!anyDrop) dropDate = isOverGantt(e.clientX, e.clientY) ? xToDate(e.clientX) : null;
     }
+    // Keep the placing press from also grabbing a bar/marker underneath it
+    function onPress(e) { if (!origin?.contains(e.target)) e.stopPropagation(); }
     function cleanup() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('click',     onClick);
-      document.removeEventListener('keydown',   onKey);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerdown', onPress, true);
+      document.removeEventListener('click',       onClick, true);
+      document.removeEventListener('keydown',     onKey);
       ghost.remove();
       dropDate         = null;
       draggingLegendMs = null;
     }
     function onClick(e) {
-      const date = dropDate;
+      if (origin?.contains(e.target)) return;
+      e.stopPropagation();
+      // Read the date from the click itself — touch taps have no preceding hover moves
+      const date = isOverGantt(e.clientX, e.clientY) ? xToDate(e.clientX) : null;
       cleanup();
-      if (anyDrop || (isOverGantt(e.clientX, e.clientY) && date && project)) onDrop(date);
+      if (anyDrop || (date && project)) onDrop(date);
     }
     function onKey(e) { if (e.key === 'Escape') cleanup(); }
 
-    document.addEventListener('mousemove', onMove);
-    // RAF ensures this listener is added after the launching click has fully propagated.
+    document.addEventListener('pointermove', onMove);
+    // RAF ensures these listeners are added after the launching click has fully propagated.
     requestAnimationFrame(() => {
-      document.addEventListener('click',   onClick);
-      document.addEventListener('keydown', onKey);
+      document.addEventListener('pointerdown', onPress, true);
+      document.addEventListener('click',       onClick, true);
+      document.addEventListener('keydown',     onKey);
     });
   }
 
@@ -231,23 +219,23 @@
   }
 
   // Reposition an existing legend milestone by dragging its footer pill.
-  function startMilestoneDrag(ms) {
+  function startMilestoneDrag(ms, e) {
     draggingLegendMs = ms;
-    startLegendDrag(makeMilestoneGhost(ms), 0, 0, (date) => {
+    startLegendDrag(makeMilestoneGhost(ms), e, (date) => {
       const idx = project.legend.milestones.findIndex(m => m.code === ms.code);
       if (idx >= 0) projectStore.updateLegendItem(data.id, 'milestones', idx, { date });
     });
   }
 
-  function startApprovalDrag(a) {
-    startLegendDrag(makeApprovalGhost(a), 0, 0, (date) => {
+  function startApprovalDrag(a, e) {
+    startLegendDrag(makeApprovalGhost(a), e, (date) => {
       const idx = project.legend.approvals.findIndex(ap => ap.text === a.text);
       if (idx >= 0) projectStore.updateLegendItem(data.id, 'approvals', idx, { date });
     });
   }
 
-  function startEstimateDrag(est) {
-    startLegendDrag(makeEstimateGhost(est), 0, 0, (date) => {
+  function startEstimateDrag(est, e) {
+    startLegendDrag(makeEstimateGhost(est), e, (date) => {
       const idx = project.legend.estimates.findIndex(e => e.code === est.code);
       if (idx >= 0) projectStore.updateLegendItem(data.id, 'estimates', idx, { date });
     });
@@ -263,7 +251,7 @@
         ...(project.legend.milestones ?? []),
         { ...ms, date },
       ]);
-    });
+    }, { origin: e.currentTarget });
   }
 
   function handleAddDeliverable(e) {
@@ -274,7 +262,7 @@
         ...(project.legend.deliverables ?? []),
         { text: 'New Deliverable', label: '', date },
       ]);
-    });
+    }, { origin: e.currentTarget });
   }
 
   function handleAddApproval(e) {
@@ -285,7 +273,7 @@
         ...(project.legend.approvals ?? []),
         { ...a, date },
       ]);
-    });
+    }, { origin: e.currentTarget });
   }
 
   function handleAddEstimate(e) {
@@ -297,7 +285,7 @@
         ...(project.legend.estimates ?? []),
         { ...est, date },
       ]);
-    });
+    }, { origin: e.currentTarget });
   }
 
   function linkToGantt(msCode) {
@@ -371,7 +359,8 @@
   let reorderDraggingId  = $state(null);
   let reorderInsertIdx   = $state(null);
 
-  let zoom            = $state('fit');
+  // Phones get readable month columns (scroll sideways) instead of squeezing everything to fit
+  let zoom            = $state(window.innerWidth < MOBILE_W ? 'month' : 'fit');
   let showTodayLine   = $state(true);
   let printPanelOpen  = $state(false);
   let hideLegendPrint = $state(false);
@@ -391,18 +380,13 @@
   let footerH = $state(null); // null = auto height
 
   function startFooterResize(e) {
-    e.preventDefault();
     const startY = e.clientY;
     const startH = footerH ?? e.currentTarget.nextElementSibling?.getBoundingClientRect().height ?? 180;
-    function onMove(ev) {
-      footerH = Math.max(48, Math.min(600, startH + (startY - ev.clientY)));
-    }
-    function onUp() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    }
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    const maxH   = Math.min(600, window.innerHeight * 0.75);
+    pointerDrag(e, {
+      holdMs: 0,
+      onMove(ev) { footerH = Math.max(48, Math.min(maxH, startH + (startY - ev.clientY))); },
+    });
   }
 
   // Timeline range controls
@@ -476,7 +460,7 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeyDown} />
+<svelte:window onkeydown={handleKeyDown} bind:innerWidth={innerW} />
 
 {#if !project}
   <div class="not-found">
@@ -553,10 +537,10 @@
 
       <div class="tl-center">
         <button class="tl-shift" onclick={() => adjustView(-1, -1)} title="Slide the view one month earlier (same number of months)">◀</button>
-        <span class="tl-dur">{ganttMonths.length} months shown</span>
+        <span class="tl-dur">{ganttMonths.length} {isMobile ? 'mo' : 'months shown'}</span>
         <button class="tl-shift" onclick={() => adjustView(1, 1)} title="Slide the view one month later (same number of months)">▶</button>
         <button class="tl-fit" class:tl-fit-warn={tasksOutsideView} onclick={fitView}
-          title="Set the view to cover all tasks">{tasksOutsideView ? 'Some tasks hidden · Fit to tasks' : 'Fit to tasks'}</button>
+          title="Set the view to cover all tasks">{tasksOutsideView ? (isMobile ? 'Tasks hidden · Fit' : 'Some tasks hidden · Fit to tasks') : (isMobile ? 'Fit tasks' : 'Fit to tasks')}</button>
       </div>
 
       <div class="tl-end tl-end-right">
@@ -590,7 +574,7 @@
           <div class="sch-inner" style:width="{TASK_COL_W + ganttWidth}px">
 
             <TaskPanel
-
+              width={TASK_COL_W}
               markerLanes={markerLanes}
               tasks={project.tasks}
               onRename={handleRename}
@@ -627,10 +611,10 @@
         </div>
       </div>
 
-      <div class="footer-resizer no-print" onmousedown={startFooterResize}></div>
+      <div class="footer-resizer no-print" onpointerdown={startFooterResize}></div>
 
       <div class="print-foot" class:no-print={hideLegendPrint}>
-        <div class="legend-wrap"
+        <div class="legend-wrap" class:legend-auto={!footerH}
              style:height={footerH ? footerH + 'px' : null}
              style:overflow-y={footerH ? 'auto' : null}>
           <LegendFooter
@@ -683,6 +667,7 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: 100dvh; /* excludes mobile browser toolbars */
     overflow: hidden;
     background: #fff;
     transition: padding-right .22s ease;
@@ -949,6 +934,45 @@
   }
   .footer-resizer:hover,
   .footer-resizer:active { background: var(--blue); }
+  .footer-resizer { touch-action: none; }
+
+  /* ── Touch: larger hit targets ── */
+  @media (pointer: coarse) {
+    .action-btn { padding: 9px 14px; }
+    .tl-btn, .zoom-btn, .tl-fit { height: 32px; }
+    .tl-btn  { padding: 0 12px; font-size: 16px; }
+    .zoom-btn { padding: 0 11px; }
+    .tl-date { line-height: 32px; }
+    .tl-shift { padding: 8px 6px; font-size: 13px; }
+    .today-toggle { padding: 8px 2px; }
+    .footer-resizer { height: 16px; display: flex; align-items: center; justify-content: center; }
+    .footer-resizer::after {
+      content: ''; width: 36px; height: 4px; border-radius: 2px; background: var(--mgray);
+    }
+    .meta-field, .meta-sep { font-size: 13px; }
+  }
+
+  /* ── Phones ── */
+  @media screen and (max-width: 640px) {
+    .schedule-page.ai-open { padding-right: 0; }
+
+    .sch-hdr { flex-wrap: wrap; padding: 8px 12px 8px; gap: 8px; }
+    .hdr-left { width: 100%; gap: 10px; }
+    .hdr-title { font-size: 18px; }
+    .hdr-actions { width: 100%; gap: 6px; padding-top: 0; }
+    .action-btn { flex: 1; padding-left: 4px; padding-right: 4px; }
+
+    .timeline-bar {
+      height: auto; flex-wrap: wrap; justify-content: center;
+      padding: 6px 8px; gap: 6px 12px;
+    }
+    .tl-lbl { display: none; }
+    .tl-end-right { flex-direction: row; }
+    .view-opts { margin-right: 4px; }
+
+    /* Legend gets at most ~1/3 of the screen unless the user drags the resizer */
+    .legend-auto { max-height: 34dvh; overflow-y: auto; }
+  }
 
   /* R3A print mark */
   .r3a-mark {

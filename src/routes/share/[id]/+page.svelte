@@ -10,7 +10,6 @@
   let { data } = $props();
   let markerLanes = $state(1); // stacked marker lanes reported by GanttPanel
 
-  const TASK_COL_W = 252;
   const noop = () => {};
 
   let project  = $state(null);
@@ -23,10 +22,18 @@
 
   // Fit the schedule to the window width, respecting a min column width
   let windowW  = $state(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  let isPhone    = $derived(windowW < 640);
+  let TASK_COL_W = $derived(isPhone ? 124 : 252);
   let colW     = $derived(ganttMonths.length > 0
     ? Math.max(36, Math.floor((windowW - TASK_COL_W) / ganttMonths.length))
     : 72);
   let contentW = $derived(TASK_COL_W + ganttMonths.length * colW);
+
+  // When the timeline is wider than the screen, hint that it scrolls sideways
+  let bodyEl      = $state(null);
+  let scrollLeft  = $state(0);
+  let overflows   = $derived(contentW > windowW + 1);
+  let atEnd       = $derived(scrollLeft + windowW >= contentW - 4);
 
   onMount(async () => {
     window.addEventListener('resize', () => { windowW = window.innerWidth; });
@@ -67,9 +74,16 @@
       <div class="share-badge">Draft</div>
     </header>
 
-    <div class="share-body">
+    {#if overflows}
+      <div class="swipe-hint">Swipe sideways to see the full timeline →</div>
+    {/if}
+
+    <div class="share-body" class:fade-right={overflows && !atEnd}
+         bind:this={bodyEl} onscroll={() => scrollLeft = bodyEl.scrollLeft}>
       <div class="share-inner" style:width="{contentW}px">
         <TaskPanel
+          readonly
+          width={TASK_COL_W}
           markerLanes={markerLanes}
           tasks={project.tasks}
           onRename={noop}
@@ -99,14 +113,13 @@
     </div>
 
     <LegendFooter
+      readonly
       legend={project.legend}
       tasks={project.tasks}
       notes={project.notes ?? ''}
       onUpdate={noop}
     />
 
-    <!-- Blocks all editing interaction -->
-    <div class="blocker"></div>
 
   </div>
 {/if}
@@ -166,10 +179,30 @@
     align-self: center;
   }
 
-  .share-body { overflow-x: auto; flex: 1; }
-  .share-inner { display: flex; }
+  .share-body { overflow-x: auto; flex: 1; position: relative; }
 
-  .blocker {
-    position: fixed; inset: 0; z-index: 9999; background: transparent;
+  .swipe-hint {
+    font-family: 'Barlow', sans-serif; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .08em;
+    color: var(--blue); background: var(--off);
+    padding: 6px 12px; border-bottom: 1px solid var(--lgray);
+  }
+  /* Soft edge on the right while more timeline is off-screen */
+  .fade-right {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .share-inner { display: flex; overflow-x: clip; } /* clip markers past the end; clip keeps the sticky task column working */
+
+  /* Read-only: content ignores pointers (no dragging/editing), while the scroll
+     containers themselves still receive touches so the schedule can be panned */
+  .share-inner :global(*), .share-page :global(.legend *) { pointer-events: none; }
+
+  @media screen and (max-width: 640px) {
+    .share-hdr   { padding: 10px 12px; align-items: center; }
+    .share-title { font-size: 18px; }
+    .share-badge { padding: 3px 8px; }
+    /* Legend follows the schedule directly instead of being pushed to the page bottom */
+    .share-body  { flex: none; }
   }
 </style>

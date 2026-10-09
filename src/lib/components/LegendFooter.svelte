@@ -2,7 +2,7 @@
   import { tick } from 'svelte';
   import { toWeekday } from '$lib/utils/dates.js';
 
-  let { legend, tasks = [], onUpdate, onMilestoneDrag, onApprovalDrag, onEstimateDrag, onAddMilestone, onAddDeliverable, onAddApproval, onAddEstimate, onLinkClick, notes = '', onNotesUpdate = null } = $props();
+  let { legend, tasks = [], onUpdate, onMilestoneDrag, onApprovalDrag, onEstimateDrag, onAddMilestone, onAddDeliverable, onAddApproval, onAddEstimate, onLinkClick, notes = '', onNotesUpdate = null, readonly = false } = $props();
 
   function emit(section, items) {
     onUpdate(section, items);
@@ -71,7 +71,7 @@
   }
 </script>
 
-<footer class="legend">
+<footer class="legend" class:readonly>
 
   <!-- Deliverables -->
   <div class="leg-col">
@@ -85,7 +85,7 @@
             <div class="leg-line">
               <span
                 class="leg-field leg-name"
-                contenteditable="true"
+                contenteditable={!readonly}
                 spellcheck="false"
                 onblur={(e) => onText(e, 'deliverables', i, 'text')}
                 onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), e.target.blur())}
@@ -120,21 +120,21 @@
           <div
             class="ms-pill"
             title="Drag to schedule"
-            onmousedown={(e) => { if (e.button === 0) { e.preventDefault(); onMilestoneDrag?.(m); } }}
+            onpointerdown={(e) => onMilestoneDrag?.(m, e)}
           >
             <span
-              contenteditable="true"
+              contenteditable={!readonly}
               spellcheck="false"
               onblur={(e) => onText(e, 'milestones', i, 'code')}
               onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), e.target.blur())}
-              onmousedown={(e) => e.stopPropagation()}
+              onpointerdown={(e) => e.stopPropagation()}
             >{m.code}</span>
           </div>
           <div class="leg-body">
             <div class="leg-line">
               <span
                 class="leg-field leg-name"
-                contenteditable="true"
+                contenteditable={!readonly}
                 spellcheck="false"
                 onblur={(e) => onText(e, 'milestones', i, 'text')}
                 onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), e.target.blur())}
@@ -170,21 +170,21 @@
             class="leg-code"
             style:background={e.color}
             title="Drag to schedule"
-            onmousedown={(ev) => { if (ev.button === 0) { ev.preventDefault(); onEstimateDrag?.(e); } }}
+            onpointerdown={(ev) => onEstimateDrag?.(e, ev)}
           >
             <span
-              contenteditable="true"
+              contenteditable={!readonly}
               spellcheck="false"
               onblur={(ev) => onText(ev, 'estimates', i, 'code')}
               onkeydown={(ev) => ev.key === 'Enter' && (ev.preventDefault(), ev.target.blur())}
-              onmousedown={(ev) => ev.stopPropagation()}
+              onpointerdown={(ev) => ev.stopPropagation()}
             >{e.code}</span>
           </div>
           <div class="leg-body">
             <div class="leg-line">
               <span
                 class="leg-field leg-name"
-                contenteditable="true"
+                contenteditable={!readonly}
                 spellcheck="false"
                 onblur={(ev) => onText(ev, 'estimates', i, 'text')}
                 onkeydown={(ev) => ev.key === 'Enter' && (ev.preventDefault(), ev.target.blur())}
@@ -219,13 +219,13 @@
           <div
             class="leg-diamond"
             title="Drag to schedule"
-            onmousedown={(e) => { if (e.button === 0) { e.preventDefault(); onApprovalDrag?.(a); } }}
+            onpointerdown={(e) => onApprovalDrag?.(a, e)}
           ></div>
           <div class="leg-body">
             <div class="leg-line">
               <span
                 class="leg-field leg-name"
-                contenteditable="true"
+                contenteditable={!readonly}
                 spellcheck="false"
                 onblur={(e) => onText(e, 'approvals', i, 'text')}
                 onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), e.target.blur())}
@@ -278,7 +278,7 @@
             class="leg-field note-txt note-draft"
             role="textbox"
             tabindex="0"
-            contenteditable="true"
+            contenteditable={!readonly}
             spellcheck="false"
             onblur={onDraftBlur}
             onkeydown={(e) => onNoteKey(e, true)}
@@ -533,6 +533,34 @@
   .leg-col:hover .leg-add { opacity: 1; }
 
   .print-only { display: none; }
+
+  /* Read-only (share view): no edit controls, dates shown as text */
+  .readonly .leg-del, .readonly .leg-add, .readonly .date-inp { display: none !important; }
+  .readonly .print-only { display: inline; }
+  .readonly .leg-field { cursor: default; }
+  .readonly .leg-name { white-space: normal; overflow: visible; }
+
+  .ms-pill, .leg-code, .leg-diamond { touch-action: none; -webkit-touch-callout: none; }
+
+  /* Touch screens have no hover — keep controls visible and easier to hit */
+  @media (hover: none) {
+    .leg-del { opacity: .45; padding: 4px 6px; font-size: 12px; }
+    .leg-add { opacity: 1; padding: 8px 0 2px; }
+    .date-inp { font-size: 16px; max-width: 150px; }
+    .ms-pill, .leg-code, .leg-bdg { width: 24px; height: 24px; }
+    .leg-diamond { width: 14px; height: 14px; margin: 5px 5px 0; }
+    /* Codes fill the whole chip — on touch the chip is for dragging, not editing */
+    .ms-pill span, .leg-code span { pointer-events: none; }
+  }
+
+  /* Narrow screens: two columns per row, notes full width */
+  @media screen and (max-width: 760px) {
+    .legend { flex-wrap: wrap; }
+    .leg-col { flex: 1 1 50%; border-bottom: 1px solid var(--black); }
+    .leg-col:nth-child(2n) { border-right: none; }
+    .leg-col-notes { flex-basis: 100%; border-bottom: none; }
+    .leg-items { overflow-y: visible; }
+  }
 
   @media print {
     .leg-del, .leg-add { display: none !important; }
