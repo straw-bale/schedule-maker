@@ -140,6 +140,22 @@
     popupTask = { ...popupTask, [field]: val };
     onTaskUpdate(popupTask.id, { [field]: val });
   }
+  // Switch a task between a bar and a milestone dot. The bar's start/end are kept on the
+  // task so switching back restores the original span.
+  function setShape(type) {
+    if (!popupTask || popupTask.type === type) return;
+    let patch;
+    if (type === 'milestone') {
+      patch = { type, date: toWeekday(popupTask.end ?? popupTask.start) };
+    } else {
+      const start = popupTask.start ?? popupTask.date;
+      let end = popupTask.end;
+      if (!end || end <= start) { const d = parseDate(start); d.setDate(d.getDate() + 14); end = toISO(d); }
+      patch = { type, start, end, color: popupTask.color ?? '#20ABE2' };
+    }
+    popupTask = { ...popupTask, ...patch };
+    onTaskUpdate(popupTask.id, patch);
+  }
 
   // Bar drag (move / left-resize / right-resize). On touch: long-press to drag, tap to edit.
   function startDrag(e, task, mode) {
@@ -444,6 +460,7 @@
                   <div class="ms-lbl" style:left="{mpx + 8}px">{task.label}</div>
                 {/if}
                 <div class="ms-dot" style:left="{mpx}px"
+                  ondblclick={(e) => openPopup(task, e.clientX, e.clientY)}
                   onpointerdown={(e) => startDrag(e, task, 'move')}></div>
               {/if}
 
@@ -511,6 +528,15 @@
   <div class="dp" style:left="{popupX}px" style:top="{popupY}px">
     <div class="dp-close" onclick={closePopup}>✕</div>
     <div class="dp-task-name">{popupTask.name}</div>
+    <div class="dp-lbl">Shape</div>
+    <div class="dp-shape">
+      <button class:active={popupTask.type !== 'milestone'} onclick={() => setShape('bar')}>
+        <span class="dp-shape-bar"></span>Bar
+      </button>
+      <button class:active={popupTask.type === 'milestone'} onclick={() => setShape('milestone')}>
+        <span class="dp-shape-dot"></span>Milestone
+      </button>
+    </div>
     {#if popupTask.type === 'milestone'}
       <div class="dp-lbl">Date</div>
       <input type="date" value={popupTask.date} oninput={(e) => { const v = toWeekday(e.target.value); e.target.value = v; onPopupChange('date', v); }}>
@@ -743,6 +769,16 @@
   .dp-colors {
     display: flex; gap: 5px; margin-top: 4px;
   }
+  .dp-shape { display: flex; gap: 5px; }
+  .dp-shape button {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    border: 1px solid var(--lgray); border-radius: 2px; background: #fff;
+    padding: 4px 6px; cursor: pointer;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 12px; color: var(--black);
+  }
+  .dp-shape button.active { border-color: var(--blue); background: rgba(32,171,226,.1); }
+  .dp-shape-bar { width: 16px; height: 7px; border-radius: 1px; background: var(--black); }
+  .dp-shape-dot { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--blue); }
   .dp-swatch {
     width: 22px; height: 22px; border-radius: 3px; cursor: pointer;
     border: 2px solid transparent; transition: transform .1s, border-color .1s;
